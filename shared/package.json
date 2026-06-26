@@ -1,0 +1,14 @@
+{
+  "name": "cityops-ai-shared",
+  "version": "0.1.0",
+  "description": "Shared types, contracts, and constants for CityOps AI",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}
