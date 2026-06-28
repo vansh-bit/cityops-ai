@@ -13,8 +13,9 @@ interface AppConfig {
     projectId: string;
     clientEmail: string;
     privateKey: string;
+    storageBucket: string;
+    authEmulatorHost?: string;
   };
-  storageBucket: string;
   mapsApiKey: string;
 }
 
@@ -40,8 +41,9 @@ function loadConfig(): AppConfig {
       projectId: requireEnv('FIREBASE_PROJECT_ID'),
       clientEmail: requireEnv('FIREBASE_CLIENT_EMAIL'),
       privateKey: requireEnv('FIREBASE_PRIVATE_KEY').replace(/\\n/g, '\n'),
+      storageBucket: requireEnv('FIREBASE_STORAGE_BUCKET'),
+      authEmulatorHost: process.env.FIREBASE_AUTH_EMULATOR_HOST,
     },
-    storageBucket: requireEnv('STORAGE_BUCKET'),
     mapsApiKey: requireEnv('MAPS_API_KEY'),
   };
 }

@@ -1,28 +1,32 @@
 import { useState, useEffect } from 'react';
+import type { ApiSuccessResponse, HealthData } from 'cityops-ai-shared';
+import { API_PREFIX } from 'cityops-ai-shared';
+import { initializeFirebaseClient } from './config/firebase';
 import './App.css';
 
-interface HealthStatus {
-  status: string;
-  timestamp: string;
-  uptime: number;
-  environment: string;
-}
-
 function App() {
-  const [health, setHealth] = useState<HealthStatus | null>(null);
+  const [health, setHealth] = useState<HealthData | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
+  const [authConfigured, setAuthConfigured] = useState(true);
   const [loading, setLoading] = useState(true);
 
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
   useEffect(() => {
+    try {
+      initializeFirebaseClient();
+      setAuthConfigured(true);
+    } catch {
+      setAuthConfigured(false);
+    }
+
     const checkHealth = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${apiUrl}/health`);
+        const response = await fetch(`${apiUrl}${API_PREFIX}/health`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        setHealth(data);
+        const json: ApiSuccessResponse<HealthData> = await response.json();
+        setHealth(json.data);
         setHealthError(null);
       } catch (err) {
         setHealthError(err instanceof Error ? err.message : 'Connection failed');
@@ -55,6 +59,12 @@ function App() {
           <span className="status-label">Backend API</span>
           <span className={`status-value ${loading ? 'loading' : health ? 'ok' : 'error'}`}>
             {loading ? '◌ Checking...' : health ? '● Online' : `✕ ${healthError}`}
+          </span>
+        </div>
+        <div className="status-item">
+          <span className="status-label">Firebase Auth</span>
+          <span className={`status-value ${authConfigured ? 'ok' : 'error'}`}>
+            {authConfigured ? '● Configured' : '✕ Missing config'}
           </span>
         </div>
         {health && (

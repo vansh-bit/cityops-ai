@@ -3,14 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "description": "CityOps AI — AI-powered city operations management platform",
+  "workspaces": [
+    "shared",
+    "backend",
+    "frontend"
+  ],
   "scripts": {
     "setup": "chmod +x scripts/setup.sh && ./scripts/setup.sh",
     "dev": "chmod +x scripts/dev.sh && ./scripts/dev.sh",
-    "build": "cd shared && npm run build && cd ../backend && npm run build && cd ../frontend && npm run build",
-    "lint": "cd backend && npm run lint && cd ../frontend && npm run lint",
-    "format": "cd backend && npm run format && cd ../frontend && npm run format",
-    "test": "cd backend && npm test",
-    "clean": "cd backend && npm run clean && cd ../shared && npm run clean"
+    "build": "npm run build -w shared && npm run build -w backend && npm run build -w frontend",
+    "lint": "npm run lint -w backend && npm run lint -w frontend",
+    "format": "npm run format -w backend",
+    "test": "npm run test -w backend",
+    "clean": "npm run clean -w backend && npm run clean -w shared && npm run clean -w frontend"
   },
   "engines": {
     "node": ">=20.0.0"

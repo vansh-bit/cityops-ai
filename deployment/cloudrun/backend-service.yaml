@@ -61,13 +61,13 @@ spec:
               memory: "512Mi"
           startupProbe:
             httpGet:
-              path: /health
+              path: /api/v1/health
               port: 3001
             initialDelaySeconds: 5
             periodSeconds: 5
             failureThreshold: 10
           livenessProbe:
             httpGet:
-              path: /health
+              path: /api/v1/health
               port: 3001
             periodSeconds: 15

@@ -22,9 +22,12 @@
       "@routes/*": ["src/routes/*"],
       "@middleware/*": ["src/middleware/*"],
       "@utils/*": ["src/utils/*"],
-      "@types/*": ["src/types/*"]
+      "@types/*": ["src/types/*"],
+      "@repositories/*": ["src/repositories/*"],
+      "@ai/*": ["src/ai/*"],
+      "@tools/*": ["src/tools/*"]
     }
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.d.ts"],
   "exclude": ["node_modules", "dist"]
 }

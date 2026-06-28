@@ -2,8 +2,8 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // Default: deny all reads and writes
-    // Rules will be configured in future milestones
+    // Client access to operational assets is prohibited.
+    // Uploads, reads, and signed URL generation are backend-owned.
     match /{allPaths=**} {
       allow read, write: if false;
     }

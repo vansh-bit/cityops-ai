@@ -1,15 +1,9 @@
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-
 import logger from './utils/logger';
+import { createApp } from './app';
 import { loadConfig } from './config';
 import { initializeFirebase } from './config/firebase';
 import { initializeGemini } from './config/gemini';
 import { initializeMaps } from './config/maps';
-import healthRouter from './routes/health';
-import requestLogger from './middleware/requestLogger';
-import errorHandler from './middleware/errorHandler';
 
 async function bootstrap(): Promise<void> {
   // ── Load & validate configuration ──
@@ -27,21 +21,7 @@ async function bootstrap(): Promise<void> {
   initializeMaps(config);
   logger.info('All cloud services initialized');
 
-  // ── Create Express app ──
-  const app = express();
-
-  // ── Middleware ──
-  app.use(helmet());
-  app.use(cors());
-  app.use(express.json({ limit: '10mb' }));
-  app.use(express.urlencoded({ extended: true }));
-  app.use(requestLogger);
-
-  // ── Routes ──
-  app.use(healthRouter);
-
-  // ── Error handling ──
-  app.use(errorHandler);
+  const app = createApp();
 
   // ── Start server ──
   app.listen(config.port, () => {

@@ -61,7 +61,7 @@ cd frontend && npm run dev   # App on http://localhost:5173
 ### 4. Verify Health
 
 ```bash
-curl http://localhost:3001/health
+curl http://localhost:3001/api/v1/health
 ```
 
 ## Environment Variables
