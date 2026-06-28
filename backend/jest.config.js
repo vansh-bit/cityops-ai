@@ -12,4 +12,7 @@ module.exports = {
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'clover'],
+  moduleNameMapper: {
+    '^cityops-ai-shared$': '<rootDir>/../shared/index.ts'
+  },
 };

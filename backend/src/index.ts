@@ -1,3 +1,4 @@
+import { initializeAIInfrastructure } from './ai';
 import logger from './utils/logger';
 import { createApp } from './app';
 import { loadConfig } from './config';
@@ -19,6 +20,7 @@ async function bootstrap(): Promise<void> {
   initializeFirebase(config);
   initializeGemini(config);
   initializeMaps(config);
+  await initializeAIInfrastructure(config);
   logger.info('All cloud services initialized');
 
   const app = createApp();

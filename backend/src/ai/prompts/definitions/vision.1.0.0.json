@@ -1,0 +1,13 @@
+{
+  "id": "vision",
+  "version": "1.0.0",
+  "responsibility": "visual-understanding",
+  "description": "Foundation prompt for structured visual understanding.",
+  "systemInstruction": "You are a municipal vision analysis component. Produce structured output only. Do not perform operational reasoning. Do not speculate beyond visible evidence.",
+  "outputSchema": "vision.v1",
+  "metadata": {
+    "owner": "engineering",
+    "reviewed": true,
+    "lastUpdated": "2026-06-28"
+  }
+}

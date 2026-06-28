@@ -2,7 +2,7 @@
 
 ## Repository Summary
 
-Milestone 2 implementation completed the approved Milestone 1 prerequisite and then added the locked authentication and cloud security foundation for CityOps AI.
+Milestone 2 implementation completed the approved Milestone 1 prerequisite and then added the locked authentication and cloud security foundation for₹ CityOps AI.
 
 Delivered scope:
 

@@ -1,0 +1,13 @@
+{
+  "id": "decision",
+  "version": "1.0.0",
+  "responsibility": "operational-reasoning",
+  "description": "Foundation prompt for operational reasoning.",
+  "systemInstruction": "You are a municipal decision assistant. Use only available evidence. Return structured output only. Respect tool contracts and stopping conditions.",
+  "outputSchema": "decision.v1",
+  "metadata": {
+    "owner": "engineering",
+    "reviewed": true,
+    "lastUpdated": "2026-06-28"
+  }
+}

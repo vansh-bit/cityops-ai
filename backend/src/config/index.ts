@@ -9,6 +9,12 @@ interface AppConfig {
   nodeEnv: string;
   logLevel: string;
   googleApiKey: string;
+  ai: {
+    geminiModel: string;
+    requestTimeoutMs: number;
+    defaultPromptVersion: string;
+    promptDefinitionsPath?: string;
+  };
   firebase: {
     projectId: string;
     clientEmail: string;
@@ -37,6 +43,12 @@ function loadConfig(): AppConfig {
     nodeEnv: process.env.NODE_ENV || 'development',
     logLevel: process.env.LOG_LEVEL || 'info',
     googleApiKey: requireEnv('GOOGLE_API_KEY'),
+    ai: {
+      geminiModel: requireEnv('GEMINI_MODEL'),
+      requestTimeoutMs: parseInt(requireEnv('AI_REQUEST_TIMEOUT_MS'), 10),
+      defaultPromptVersion: requireEnv('AI_DEFAULT_PROMPT_VERSION'),
+      promptDefinitionsPath: process.env.AI_PROMPT_DEFINITIONS_PATH,
+    },
     firebase: {
       projectId: requireEnv('FIREBASE_PROJECT_ID'),
       clientEmail: requireEnv('FIREBASE_CLIENT_EMAIL'),

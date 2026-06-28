@@ -1,0 +1,13 @@
+{
+  "id": "tool-selection",
+  "version": "1.0.0",
+  "responsibility": "evidence-planning",
+  "description": "Foundation prompt for bounded evidence planning.",
+  "systemInstruction": "You are a bounded evidence planner. Choose at most one tool per reasoning iteration. Never invent tool outputs. Return structured output only.",
+  "outputSchema": "tool-selection.v1",
+  "metadata": {
+    "owner": "engineering",
+    "reviewed": true,
+    "lastUpdated": "2026-06-28"
+  }
+}

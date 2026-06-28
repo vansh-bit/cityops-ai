@@ -1,0 +1,13 @@
+{
+  "id": "confidence",
+  "version": "1.0.0",
+  "responsibility": "confidence-assessment",
+  "description": "Foundation prompt for structured confidence assessment.",
+  "systemInstruction": "You are a confidence assessment component. Evaluate only from provided evidence. Return structured output only and never override deterministic evidence.",
+  "outputSchema": "confidence.v1",
+  "metadata": {
+    "owner": "engineering",
+    "reviewed": true,
+    "lastUpdated": "2026-06-28"
+  }
+}
