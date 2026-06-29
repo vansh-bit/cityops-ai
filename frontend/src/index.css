@@ -1,60 +1,104 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+
 :root {
-  --color-primary: #2563eb;
-  --color-primary-dark: #1d4ed8;
-  --color-bg: #0f172a;
-  --color-surface: #1e293b;
-  --color-surface-elevated: #334155;
-  --color-text: #f1f5f9;
-  --color-text-muted: #94a3b8;
-  --color-success: #22c55e;
-  --color-warning: #f59e0b;
-  --color-error: #ef4444;
-  --color-border: #334155;
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --radius: 8px;
-  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+  /* Colors */
+  --canvas:        #F7F6F3;   /* off-white — like a printed government form */
+  --ink:           #111110;   /* near-black — all primary text */
+  --ink-secondary: #4A4845;   /* secondary text, descriptions */
+  --ink-muted:     #9A9590;   /* labels, metadata, placeholders */
+  --rule:          #D8D5CF;   /* all borders, dividers, hairlines */
+  --amber:         #C17B2A;   /* THE ONLY ACCENT — warning tape, road paint, hazard */
+  --amber-light:   #F0E4CC;   /* amber tint — selected state backgrounds only */
+  --surface:       #FFFFFF;   /* card and panel surfaces */
+  --stamp-red:     #B03A2E;   /* HIGH PRIORITY only */
+  --stamp-green:   #2E7D52;   /* VERIFIED / APPROVED / DONE only */
+
+  /* Typography Families */
+  --font-display: 'DM Serif Display', serif;
+  --font-sans:    'Inter', sans-serif;
+  --font-mono:    'JetBrains Mono', monospace;
 }
 
+/* Global Reset */
 * {
+  box-sizing: border-box;
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
-}
-
-html {
-  font-size: 16px;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  border-radius: 0; /* Zero border-radius on structural elements */
+  box-shadow: none; /* No box-shadows */
 }
 
 body {
+  background-color: var(--canvas);
+  color: var(--ink);
   font-family: var(--font-sans);
-  background-color: var(--color-bg);
-  color: var(--color-text);
-  line-height: 1.6;
-  min-height: 100vh;
+  font-size: 15px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
 }
 
-#root {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+/* Typography Scale Utilities */
+.text-display {
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 400;
+  color: var(--ink);
 }
 
-a {
-  color: var(--color-primary);
-  text-decoration: none;
-  transition: color 0.2s ease;
+.text-eyebrow {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-muted);
 }
 
-a:hover {
-  color: var(--color-primary-dark);
+.text-card-heading {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink);
 }
 
-code {
-  font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;
-  background: var(--color-surface);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 0.875rem;
+.text-body {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.65;
+  color: var(--ink-secondary);
+}
+
+.text-data-large {
+  font-family: var(--font-sans);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.text-data-hero {
+  font-family: var(--font-display);
+  font-size: 72px;
+  font-weight: 400;
+  color: var(--ink);
+}
+
+.text-tracking-id {
+  font-family: var(--font-mono);
+  font-size: 52px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Base button */
+button {
+  border-radius: 0;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  outline: none;
 }

@@ -7,6 +7,7 @@ import errorHandler from './middleware/errorHandler';
 import requestLogger from './middleware/requestLogger';
 import healthRouter from './routes/health';
 import createUsersRouter from './routes/users';
+import demoRouter from './routes/demo';
 
 interface AppDependencies {
   authService?: AuthService;
@@ -23,6 +24,7 @@ function createApp(dependencies: AppDependencies = {}) {
   app.use(requestLogger);
 
   app.use(healthRouter);
+  app.use(demoRouter);
   app.use(createUsersRouter(authService));
 
   app.use(errorHandler);

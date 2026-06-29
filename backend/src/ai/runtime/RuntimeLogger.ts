@@ -1,4 +1,4 @@
-import { AILogger } from '../../logging/aiLogger';
+import { AILogger } from '../logging/aiLogger';
 import { RuntimeState } from './models/runtimeModels';
 
 export class RuntimeLogger {

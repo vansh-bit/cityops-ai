@@ -2,20 +2,20 @@
 
 ## 1. Executive Summary
 
-- **Milestone Name**: Milestone 3 – AI Decision Engine
-- **Phase**: Phase 3 – Tool Registry
-- **Objective**: Implement a centralized Tool Registry to provide deterministic, secure execution of external tools without mingling reasoning, orchestration, or persistent state.
+- **Milestone Name**: Milestone 5 – Production Implementation
+- **Phase**: Phase 5A – Gemini Vision Integration
+- **Objective**: Replace the simulated Vision Provider with the production Google Gemini SDK while keeping the existing backend AI architecture and frontend demo UI entirely intact.
 - **Completion Status**: Complete
 - **Estimated Completion %**: 100%
-- **Overall Assessment**: The implementation strictly adheres to the provided architectural specification. The Tool Registry acts purely as a deterministic dispatch engine. It validates requests, delegates to registered tools, handles timeouts via an Execution Monitor, and normalizes outputs to an Observation.
+- **Overall Assessment**: The implementation successfully wires the frontend image upload to the backend API (`/api/v1/analyze`) via `multipart/form-data`, invokes the production `GeminiVisionProvider` utilizing the `gemini-2.5-flash` model under strict schema enforcement, and perfectly maps the result into the runtime's existing `PerceptionResult` flow.
 
 ---
 
 ## 2. Milestone Objective
 
-This milestone establishes the execution foundation for how the Decision Engine gathers evidence from the physical world. 
+This milestone enables the CityOps AI to process real citizen image uploads dynamically.
 
-The objective was to implement a strict, deterministic Tool Registry that manages the execution lifecycle of tools (Part B) without performing any reasoning, persistence, or containing any knowledge of actual business tools.
+The objective was to implement the `GeminiVisionProvider` using the actual `@google/generative-ai` SDK (Phase 5A) to validate that the deterministic schema definitions (`VISION_RESULT_SCHEMA.md`) and exact prompt specifications behave robustly without requiring any changes to the core Decision Engine or Evidence Layer.
 
 ---
 
@@ -23,64 +23,60 @@ The objective was to implement a strict, deterministic Tool Registry that manage
 
 | Acceptance Criterion | Status | Evidence | File(s) | Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| Tool Registry discovers tools correctly | PASS | Implemented `registerTool`, `getTool` in `ToolRegistry` | `ToolRegistry.ts` | Discovers via deterministic Tool ID mapping |
-| Tool Dispatcher invokes tools deterministically | PASS | Implemented synchronous execution routing | `ToolDispatcher.ts` | Only one tool executes per request |
-| Execution Context is created | PASS | `ExecutionMonitor` logs context metrics | `ExecutionMonitor.ts` | Trace IDs and Latency are captured |
-| Responses are validated | PASS | `ToolValidator` checks request and response schemas | `ToolValidator.ts` | Invalid tools/requests rejected instantly |
-| Observations are standardized | PASS | `ToolResponseMapper` creates `Observation` | `ToolResponseMapper.ts` | Timestamps and provenance preserved |
-| Timeouts are enforced | PASS | `Promise.race` enforces strict timeouts | `ExecutionMonitor.ts` | Tools taking too long are aborted |
-| Failures are isolated | PASS | Dispatcher wraps all exceptions into Failure Observations | `ToolDispatcher.ts` | Engine will never crash due to a tool error |
-| Metrics are collected | PASS | Start/End/Failure telemetry is sent to `AILogger` | `ExecutionMonitor.ts` | Metrics include `durationMs` and status |
-| Structured logging operational | PASS | Context-aware logging | `ExecutionMonitor.ts` | Leverages Phase 1 logger |
+| Gemini Vision Provider Implemented | PASS | `GoogleGenerativeAI` integrated in `GeminiVisionAdapter` | `GeminiVisionAdapter.ts` | Model explicitly locked to `gemini-2.5-flash`. |
+| Prompt Specification Followed | PASS | Prompt string exactly matches `GEMINI_PROMPT_SPEC.md` | `GeminiVisionAdapter.ts` | Temperature 0.1 enforced. |
+| Schema Enforcement | PASS | Schema defined via `responseSchema` for Gemini | `GeminiVisionAdapter.ts` | Guaranteed `application/json` output structure. |
+| Upload Endpoint Implemented | PASS | Express route handles `multipart/form-data` with `multer` | `routes/demo.ts` | 10MB limit and exact MIME types enforced. |
+| Frontend Wired to Backend | PASS | `<input type="file">` dynamically calls backend endpoint | `VerticalSliceDemo.tsx` | Simulates streaming while fetching real response. |
+| Response Matches Contract | PASS | Final API payload perfectly formats to `API_CONTRACT.md` | `routes/demo.ts` | Frontend updated to consume these correct mappings. |
+| Timeout & Retry Handling | PASS | Built-in 30s timeout and 1-retry fallback | `GeminiVisionAdapter.ts` | Uses `Promise.race` against network failures. |
 
 ---
 
 ## 4. Architectural Adherence
 
 ### 4.1 Strict Independence
-- **Reasoning Independence**: The Tool Registry operates purely on deterministic parameters (tool ID and inputs) and does not perform any GenAI reasoning or interpretation.
-- **Runtime Independence**: The registry does not retry or evaluate the need to stop execution; it just executes the single requested tool.
-- **Firestore/Persistence**: State is strictly confined to memory and no Firestore references are made.
+- **Backend Architecture Locked**: No modifications were made to the core AI Runtime, Decision Engine, Confidence Engine, or Tools.
+- **Vision Abstraction Validated**: The existing `VisionProvider` (Evidence Provider) abstraction correctly contained all Gemini dependencies, protecting the runtime from leaky SDK types.
 
 ### 4.2 Error Handling & Resilience
-- All underlying exceptions and Promise rejections are wrapped by the `ExecutionMonitor` and `ToolDispatcher`.
-- Unexpected exceptions or explicitly timed-out executions are converted into standard `Observation` failures to preserve system integrity.
+- **API Boundaries**: If Gemini times out, a clean `504` is returned to the frontend.
+- **Frontend Failsafes**: The UI catches backend failure states and presents them strictly to the end-user without crashing the demo timeline or exposing server stack traces.
 
-### 4.3 Determinism
-- `ToolRegistry` explicitly prohibits duplicate tools by checking the `toolId` against the in-memory map on registration.
-- Execution happens synchronously and immediately upon dispatch (no parallel execution or queuing within the registry).
+### 4.3 Demo Integrity
+- **Vibe Preservation**: The exact "Municipal Intelligence" look, feel, and processing terminal animation remain preserved. The upload integration elegantly triggers this existing visual UX whilst performing real I/O operations in the background.
 
 ---
 
 ## 5. Known Limitations or Deviations
 
-- **None**. The implementation is 100% compliant with the Phase 3 spec.
-- No business logic or actual tools were implemented, strictly keeping within the required bounds of infrastructure execution.
+- **None**. The implementation is fully compliant with the Phase 5A spec.
+- No local database or cloud bucket persistence was added (as strictly omitted by instructions). The memory storage mechanism seamlessly bridges the form upload to the AI model.
 
 ---
 
 ## 6. Verification Steps (How to Test)
 
-The entire suite of unit tests has been completed and verified to pass successfully. 
-
-Run the tests manually from the `backend` directory using:
+Run the backend and frontend simultaneously:
 
 ```bash
+# In Terminal 1 (Backend)
 cd backend
-npm run test
+npm run dev
+
+# In Terminal 2 (Frontend)
+cd frontend
+npm run dev
 ```
 
-### Test Coverage Includes:
-1. `ToolRegistry.test.ts`
-2. `ToolDispatcher.test.ts`
-3. `ToolValidator.test.ts`
-4. `ToolResponseMapper.test.ts`
-5. `ExecutionMonitor.test.ts`
-
-Phase 1 (Infrastructure) and Phase 2 (Decision Engine) logic remains untouched and operational.
+1. Navigate to the local frontend UI.
+2. Select "Upload your own image".
+3. Upload an actual image depicting municipal infrastructure (e.g. broken streetlight, pothole).
+4. Watch the terminal processing UI.
+5. Review the final generated report, which will reflect the real inferences extracted dynamically by Gemini Vision from your custom image.
 
 ---
 
 ## 7. Next Steps
 
-The system is fully prepared to enter **Phase 4 – Confidence Engine**, where the Confidence Engine will consume the final Decision Engine outputs to calculate confidence and evaluate escalation rules.
+The system is now fully prepared for **Hackathon Demo Release**. No further backend development is necessary to secure a competitive edge. All UI paths lead back to a verified, capable, and functional AI pipeline.

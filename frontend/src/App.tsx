@@ -1,89 +1,27 @@
 import { useState, useEffect } from 'react';
-import type { ApiSuccessResponse, HealthData } from 'cityops-ai-shared';
-import { API_PREFIX } from 'cityops-ai-shared';
-import { initializeFirebaseClient } from './config/firebase';
+import { VerticalSliceDemo } from './pages/demo/VerticalSliceDemo';
 import './App.css';
 
 function App() {
-  const [health, setHealth] = useState<HealthData | null>(null);
-  const [healthError, setHealthError] = useState<string | null>(null);
-  const [authConfigured, setAuthConfigured] = useState(true);
-  const [loading, setLoading] = useState(true);
-
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
-    try {
-      initializeFirebaseClient();
-      setAuthConfigured(true);
-    } catch {
-      setAuthConfigured(false);
-    }
-
-    const checkHealth = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch(`${apiUrl}${API_PREFIX}/health`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const json: ApiSuccessResponse<HealthData> = await response.json();
-        setHealth(json.data);
-        setHealthError(null);
-      } catch (err) {
-        setHealthError(err instanceof Error ? err.message : 'Connection failed');
-        setHealth(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkHealth();
-    const interval = setInterval(checkHealth, 30000);
-    return () => clearInterval(interval);
-  }, [apiUrl]);
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   return (
-    <div className="app">
-      <header className="app-header">
-        <div className="app-logo">🏙️</div>
-        <h1 className="app-title">CityOps AI</h1>
-        <p className="app-subtitle">AI-Powered City Operations Platform</p>
+    <div className="app-container">
+      {/* Global System Header Bar */}
+      <header className="system-header">
+        <div className="sys-left">CITYOPS AI AUTOMATION SYSTEM</div>
+        <div className="sys-right">{currentTime.toLocaleDateString()} {currentTime.toLocaleTimeString()}</div>
       </header>
-
-      <div className="status-card">
-        <h2>System Status</h2>
-        <div className="status-item">
-          <span className="status-label">Frontend</span>
-          <span className="status-value ok">● Online</span>
-        </div>
-        <div className="status-item">
-          <span className="status-label">Backend API</span>
-          <span className={`status-value ${loading ? 'loading' : health ? 'ok' : 'error'}`}>
-            {loading ? '◌ Checking...' : health ? '● Online' : `✕ ${healthError}`}
-          </span>
-        </div>
-        <div className="status-item">
-          <span className="status-label">Firebase Auth</span>
-          <span className={`status-value ${authConfigured ? 'ok' : 'error'}`}>
-            {authConfigured ? '● Configured' : '✕ Missing config'}
-          </span>
-        </div>
-        {health && (
-          <>
-            <div className="status-item">
-              <span className="status-label">Environment</span>
-              <span className="status-value">{health.environment}</span>
-            </div>
-            <div className="status-item">
-              <span className="status-label">Uptime</span>
-              <span className="status-value">{Math.floor(health.uptime)}s</span>
-            </div>
-          </>
-        )}
+      
+      {/* Main app content wrapper */}
+      <div className="app-content">
+        <VerticalSliceDemo />
       </div>
-
-      <footer className="app-footer">
-        <p>CityOps AI v0.1.0 — Milestone 1: Infrastructure</p>
-      </footer>
     </div>
   );
 }

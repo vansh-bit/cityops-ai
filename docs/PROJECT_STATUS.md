@@ -1,254 +1,133 @@
-# Project Information
+# CityOps AI
 
-* Project Name: CityOps AI
-* Current Version: 0.1.0
-* Overall Status: Active Development
-* Architecture Status: LOCKED
-* Current Phase: Milestone 4 Planning
-* Last Updated: 2026-06-29
+Project Status
+
+---
+
+## Project Overview
+
+CityOps AI is a platform designed to streamline urban issue reporting and resolution by leveraging AI for automated reasoning, evidence collection, and confidence scoring. 
+
+The current implementation objective is to advance to Milestone 5, focusing on Persistence & Report Lifecycle, as the foundational Infrastructure, Authentication, AI Decision Engine, and Evidence Collection Layers are now completely locked and verified.
 
 ---
 
 ## Overall Progress
 
-```text
-Milestone 1  ✅ Complete
-
-Milestone 2  ✅ Complete
-
-Milestone 3  ✅ Complete
-
-Milestone 4  ⏳ Not Started
-
-Milestone 5  ⏳ Not Started
-
-Milestone 6  ⏳ Not Started
-
-Milestone 7  ⏳ Not Started
-
-Milestone 8  ⏳ Not Started
-
-Milestone 9  ⏳ Not Started
-
-Milestone 10 ⏳ Not Started
-```
+* **Total Milestones:** 10
+* **Completed Milestones:** 4
+* **Remaining Milestones:** 6
+* **Estimated Completion Percentage:** 40%
 
 ---
 
-## Current Project Status
+## Milestone Status
 
-* Current Milestone: Milestone 4
-* Current Phase: Planning
-* Architecture: LOCKED
-* AI Runtime: Complete
-* Implementation Progress: 30%
-* Documentation Status: Up-to-date with Milestone 3 completions
-
----
-
-## Completed Milestones
-
-### Milestone 1
-
-Status: ✅ Complete
-
-Objective: Project Setup & Infrastructure
-
-Outcome: The repository is initialized with a robust backend and frontend shell. Infrastructure for Google Cloud is bootstrapped with Docker and GitHub Actions.
-
-Review Status: Approved & Locked
-
----
-
-### Milestone 2
-
-Status: ✅ Complete
-
-Objective: Authentication & Cloud Infrastructure
-
-Outcome: Established the workspace integration. Firebase Authentication, JWT verification, and Role-Based Access Control (RBAC) middleware (Citizen/Authority) are fully implemented.
-
-Review Status: Approved & Locked
-
----
-
-### Milestone 3
-
-Status: ✅ Complete
-
-Objective: AI Decision Engine
-
-Implemented Components:
-- AI Infrastructure and Logging
-- Decision Engine (Reasoning loop, Evidence Planner, Stopping Controller)
-- Tool Registry (Dispatcher and Validator)
-- Confidence Engine (Evaluators)
-- Runtime Coordinator (Orchestration pipeline)
-
-Review Status: Approved & Locked
-
-Key Deliverables: Complete and tested AI pipeline capable of deterministic reasoning and external tool integration.
-
----
-
-## Remaining Milestones
-
-Milestone 4
-Focuses on the citizen report submission workflow, providing the interfaces and persistence layer for citizens to submit and track city issues.
-
-Milestone 5
-Focuses on the authority dashboard, enabling city authorities to review, categorize, and action citizen reports in a centralized portal.
-
-Milestone 6
-Integrates the AI Decision Engine with the report pipeline to automatically classify and suggest resolutions for incoming issues.
-
-Milestone 7
-Expands AI capabilities to include vision processing, enabling image-based evidence extraction and severity estimation.
-
-Milestone 8
-Implements the human-in-the-loop review workflow, allowing authorities to intervene when the AI confidence falls below acceptable thresholds.
-
-Milestone 9
-Refines the resolution tracking and audit history workflows, ensuring operational transparency and data persistence.
-
-Milestone 10
-Final deployment hardening, monitoring, and production-readiness checks before system launch.
+| Milestone | Status | Review Status | Completion |
+| :--- | :--- | :--- | :--- |
+| **Milestone 1**: Project Setup & Infrastructure | Completed | Approved & Locked | 100% |
+| **Milestone 2**: Authentication & Cloud Infrastructure | Completed | Approved & Locked | 100% |
+| **Milestone 3**: AI Decision Engine | Completed | Approved & Locked | 100% |
+| **Milestone 4**: Evidence Collection Layer | Completed | Approved & Locked | 100% |
+| **Milestone 5**: Persistence & Report Lifecycle | Planned | Not Started | 0% |
+| **Milestone 6**: Citizen Application | Planned | Not Started | 0% |
+| **Milestone 7**: Authority Dashboard | Planned | Not Started | 0% |
+| **Milestone 8**: Human Review Workflow | Planned | Not Started | 0% |
+| **Milestone 9**: Deployment & Google Cloud | Planned | Not Started | 0% |
+| **Milestone 10**: Demo Polish & Submission | Planned | Not Started | 0% |
 
 ---
 
 ## Current Architecture Status
 
-* Architecture is LOCKED.
-* Chapters 1–6 are frozen.
-* Milestones 1–3 are frozen.
-* Future implementation must preserve all architectural decisions.
+* **AI Runtime:** LOCKED. The Decision Engine, Tool Registry, Confidence Engine, and Runtime Coordinator are fully implemented and frozen.
+* **Evidence Layer:** LOCKED. The Evidence Infrastructure, Providers, Aggregator, Scheduler, Failure Manager, and Orchestration Coordinator are implemented, isolated, and frozen.
+* **Authentication:** LOCKED. Firebase Auth, JWT, and RBAC middlewares are finalized.
+* **Infrastructure:** LOCKED. The core backend/frontend shells and initial deployment boundaries are set.
+
+*Note: Future implementations must preserve all locked architectural decisions without deviation.*
 
 ---
 
-## Technical Readiness
+## Current Repository State
 
-* Backend: In Progress
-* Frontend: In Progress
-* AI Runtime: Complete
-* Google Cloud: In Progress
-* Testing: In Progress (106 tests passing)
-* Deployment: Not Started
-* Documentation: Complete
+* **Backend:** Robustly structured with isolated modules for the AI Runtime and Evidence Layer. Testing suites and strict interfaces maintain single-responsibility principles.
+* **Frontend:** Foundation complete, shell initialized, and awaiting citizen/authority application development.
+* **Shared:** Data structures and workspace integration remain intact.
+* **Documentation:** Up-to-date. Includes comprehensive architectural specifications, milestone directives, and technical reviews.
+* **Reviews:** Completely up-to-date. Milestone 4 implementation reviews and summaries have been generated, addressed, and approved.
 
 ---
 
 ## Current Risks
 
-* Risk: Missing Live/Emulator Validation
-* Severity: Medium
-* Mitigation: Integrate Firebase Local Emulator for live authentication and database testing in future iterations.
-
-* Risk: Strict Unrelated Bootstrap Dependencies
-* Severity: Low
-* Mitigation: Make non-critical external service initialization optional during local development.
+* **API Configuration Risk:** Production environments must transition `STUB_MODE` to `false` and insert active `GOOGLE_MAPS_API_KEY`, `GEMINI_API_KEY`, and `MUNICIPAL_API_URL` to prevent startup errors.
+* **Schema Validation Risk:** Live API schema validation for external providers (Google Maps, Gemini, etc.) remains outstanding from Milestone 4, Phase 2, and must be conducted as a pre-production task prior to live deployment.
 
 ---
 
-## Next Recommended Actions
+## Technical Debt
 
-1. Begin Milestone 4 Planning
-2. Generate Milestone 4 Documentation
-3. Implement Phase 1
-4. Review
-5. Lock
+* None. (No technical debt was introduced during Milestone 4. The architecture is 100% compliant with its requirements).
 
 ---
 
-## Project Timeline
+## Outstanding Work
 
-```text
-Completed
+**Milestone 5: Persistence & Report Lifecycle**
+* **Objective:** Implement core data models, state machine, and database persistence layers required for the end-to-end lifecycle of a citizen report.
+* **Dependencies:** Milestones 1–4
+* **Estimated Complexity:** Medium
 
-M1
+**Milestone 6: Citizen Application**
+* **Objective:** Build the user-facing web interface allowing citizens to submit rich reports, track their status, and engage with the city.
+* **Dependencies:** Milestone 5
+* **Estimated Complexity:** High
 
-↓
+**Milestone 7: Authority Dashboard**
+* **Objective:** Develop the central portal for city authorities to review AI suggestions, manually triage issues, and communicate back to citizens.
+* **Dependencies:** Milestone 5
+* **Estimated Complexity:** High
 
-M2
+**Milestone 8: Human Review Workflow**
+* **Objective:** Implement the human-in-the-loop review workflow, allowing authorities to intervene when the AI confidence falls below acceptable thresholds.
+* **Dependencies:** Milestones 3 & 7
+* **Estimated Complexity:** Medium
 
-↓
+**Milestone 9: Deployment & Google Cloud**
+* **Objective:** Handle the final deployment orchestration, establishing production Cloud Run services, CI/CD pipelines, and active monitoring.
+* **Dependencies:** Milestones 1–8
+* **Estimated Complexity:** Medium
 
-M3
-
-Current
-
-↓
-
-M4
-
-↓
-
-M5
-
-↓
-
-M6
-
-↓
-
-M7
-
-↓
-
-M8
-
-↓
-
-M9
-
-↓
-
-M10
-```
+**Milestone 10: Demo Polish & Submission**
+* **Objective:** Final deployment hardening, monitoring, and production-readiness checks before system launch.
+* **Dependencies:** Milestone 9
+* **Estimated Complexity:** Low
 
 ---
 
-## Milestone Completion Summary
+## Recent Milestone Summary
 
-Completed:
+**Milestone 4: Evidence Collection Layer**
+* **Objectives Achieved:** Successfully standardized external context retrieval (Maps, Vision, Municipal) into deterministic Evidence payloads without leaking into AI reasoning logic.
+* **Implementation Summary:** 
+  * Phase 1 established the `EvidenceRequest`/`EvidenceResponse` data contracts, validation, and immutable metadata stamping.
+  * Phase 2 built the external API providers, adapters, normalizers, and validated `STUB_MODE` fail-fast behaviors.
+  * Phase 3 implemented the Evidence Orchestrator, Provider Scheduler, Failure Manager, and Aggregator, exposing them securely to the AI Tool Registry via the `EvidenceToolAdapter` alongside robust logging and metrics.
+* **Review Outcome:** Approved and Locked. All technical review findings—including failure matrix verification and explicit logging/metrics generation—were successfully addressed.
 
-* Milestone 1
-* Milestone 2
-* Milestone 3
+---
 
-Remaining:
+## Next Recommended Action
 
-* Milestone 4
-* Milestone 5
-* Milestone 6
-* Milestone 7
-* Milestone 8
-* Milestone 9
-* Milestone 10
+**Begin Milestone 5 Planning.**
+*Rationale:* With the AI Runtime and Evidence Collection layers fully isolated, tested, and structurally locked, the system possesses all deterministic reasoning capabilities required. The next logical progression is to implement the persistence layer (Milestone 5) to track and store these citizen reports and their generated AI evaluations through a formal database state machine.
 
 ---
 
 ## Repository Health
 
-* Documentation: Excellent. All milestones have clear reviews and finalized status.
-* Codebase: Clean. Modular architecture established in `shared/`, `backend/`, and `frontend/`.
-* Reviews: Complete. All phases of Milestones 1-3 have been reviewed and locked.
-* Tests: Excellent. Robust unit tests across AI components and infrastructure.
-* Build Status: Passing. Clean test suite and compilations across packages.
-
----
-
-## Final Status
-
-```text
-Architecture: LOCKED
-
-Implementation: ACTIVE
-
-Current Milestone: 4
-
-Progress: 30%
-
-AI Runtime: COMPLETE
-
-Ready for Milestone 4: YES
-```
+* **Documentation Completeness:** Excellent. The repository acts as the single source of truth for all implementations, milestones, and technical reviews.
+* **Architecture Consistency:** 100% compliant. No architectural deviations exist. Boundaries between the AI, Orchestration, and Provider layers are strictly enforced.
+* **Review Status:** Up-to-date. Milestones 1 through 4 have completed full technical review cycles.
+* **Overall Implementation Readiness:** READY FOR MILESTONE 5.

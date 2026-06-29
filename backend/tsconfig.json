@@ -28,6 +28,9 @@
       "@tools/*": ["src/tools/*"]
     }
   },
+  "ts-node": {
+    "files": true
+  },
   "include": ["src/**/*.ts", "src/**/*.d.ts"],
   "exclude": ["node_modules", "dist"]
 }
