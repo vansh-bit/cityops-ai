@@ -26,7 +26,7 @@ async function bootstrap(): Promise<void> {
   const app = createApp();
 
   // ── Start server ──
-  app.listen(config.port, () => {
+  app.listen(config.port, '0.0.0.0', () => {
     logger.info(`CityOps AI Backend running on port ${config.port}`, {
       environment: config.nodeEnv,
       pid: process.pid,
