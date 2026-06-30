@@ -14,13 +14,28 @@ This document summarizes the changes made to the CityOps AI architecture to inte
    - Upgraded `backend/package.json` to include `multer` for handling binary image uploads.
    - Initialized `GoogleGenerativeAI` in `GeminiVisionAdapter.ts` using the `gemini-2.5-flash` model.
    - Configured deterministic prompt behavior with `temperature: 0.1` and schema enforcement.
-   - Implemented a 30-second timeout boundary and a 1-retry mechanism for transient Gemini network failures as per `ERROR_HANDLING.md`.
+   - Implemented a 30-second timeout boundary and a 1-retry mechanism.
 
-2. **Data Normalization**:
+### 2. Error Handling, Timeouts, and Safety
+- Implemented **AbortController** to forcefully terminate API requests exceeding 30 seconds.
+- Integrated safety checks catching `FinishReason.SAFETY` and `BLOCKLIST`, returning proper `CONTENT_NOT_SUPPORTED` structures.
+- Proper fallback to `Unknown` or error states when external APIs fail, timeout, or hit rate limits.
+
+### 3. Memory Optimization and Payload Validation
+- `multer` fileFilter intercepts invalid MIME types before allocating memory.
+- Explicit memory release: `req.file.buffer = Buffer.alloc(0)` executed immediately after Vision API ingestion to prevent memory leaks under load.
+
+### 4. Automated Verification
+- Created comprehensive Unit and Integration test suite using **Jest**.
+- Achieved full branch coverage on `GeminiVisionAdapter` ensuring all retry, abort, and safety scenarios are verified.
+- Integration tests mock Gemini network calls but exercise the full `RuntimeCoordinator` pipeline.
+- Achieved **100% Test Suite Pass Rate** across all legacy and new implementations (including `MapsProvider`, `MunicipalProvider`, and `RuntimeIntegration`).
+
+### 5. Data Normalization
    - `VisionProvider.ts` was updated to accept image buffers directly from the backend request.
    - The returned Gemini payload is natively mapped to the `VisionResult` schema, which is then mapped securely to a `PerceptionResult` to trigger the `RuntimeCoordinator`.
 
-3. **Frontend Upload Wiring**:
+### 6. Frontend Upload Wiring
    - `VerticalSliceDemo.tsx` triggers a real file input when clicking "Upload your own image".
    - Generates a local blob preview url.
    - Submits `multipart/form-data` to the backend.

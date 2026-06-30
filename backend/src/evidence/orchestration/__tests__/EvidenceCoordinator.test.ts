@@ -7,7 +7,7 @@ describe('EvidenceCoordinator', () => {
     const mockProvider: EvidenceProvider = {
       initialize: async () => {},
       validateRequest: (req) => true,
-      collectEvidence: async (req) => ({ requestId: req.requestId, status: EvidenceStatus.VALID, evidence: { id: 'e1', metadata: { source: req.source } } } as any)
+      collectEvidence: async (req) => ({ requestId: req.requestId, source: req.source, status: EvidenceStatus.VALID, evidence: { id: 'e1', metadata: { source: req.source }, data: { location: {}, municipality: {}, infrastructure: {} } } } as any)
     };
 
     const coordinator = new EvidenceCoordinator([mockProvider]);
@@ -18,9 +18,9 @@ describe('EvidenceCoordinator', () => {
 
     const packageResult = await coordinator.collectEvidence(requests);
 
-    expect(packageResult.status).toBe(EvidenceStatus.VALID);
-    expect(packageResult.evidence.length).toBe(1);
-    expect(packageResult.metadata.providersCompleted).toContain(EvidenceSource.GOOGLE_MAPS);
+    expect(packageResult.overallStatus).toBe(EvidenceStatus.VALID);
+    expect(packageResult.metadata.successfulProviders).toBe(1);
+    expect(packageResult.providers[0].provider).toBe(EvidenceSource.GOOGLE_MAPS);
   });
 
   it('handles scheduler unexpected failure gracefully', async () => {
@@ -40,15 +40,15 @@ describe('EvidenceCoordinator', () => {
 
     const packageResult = await coordinator.collectEvidence(requests);
 
-    expect(packageResult.status).toBe(EvidenceStatus.ERROR);
-    expect(packageResult.errors).toContain('Orchestration failed unexpectedly: Scheduler Crash');
+    expect(packageResult.overallStatus).toBe(EvidenceStatus.ERROR);
+    expect(packageResult.limitations).toContain('Orchestration failed unexpectedly: Scheduler Crash');
   });
 
   it('handles aggregation unexpected failure gracefully', async () => {
     const mockProvider: EvidenceProvider = {
       initialize: async () => {},
       validateRequest: () => true,
-      collectEvidence: async (req) => ({ requestId: req.requestId, status: EvidenceStatus.VALID, evidence: null })
+      collectEvidence: async (req) => ({ requestId: req.requestId, source: req.source, status: EvidenceStatus.VALID, evidence: null })
     };
     const coordinator = new EvidenceCoordinator([mockProvider]);
 
@@ -64,8 +64,8 @@ describe('EvidenceCoordinator', () => {
 
     const packageResult = await coordinator.collectEvidence(requests);
 
-    expect(packageResult.status).toBe(EvidenceStatus.ERROR);
-    expect(packageResult.errors).toContain('Orchestration failed unexpectedly: Aggregation Crash');
+    expect(packageResult.overallStatus).toBe(EvidenceStatus.ERROR);
+    expect(packageResult.limitations).toContain('Orchestration failed unexpectedly: Aggregation Crash');
     
     jest.restoreAllMocks();
   });

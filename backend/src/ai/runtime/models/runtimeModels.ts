@@ -25,6 +25,7 @@ export interface FinalAIResponse {
   status: RuntimeStatus;
   decision: DecisionResult | null;
   confidence: ConfidenceMetadata | null;
+  evidence?: any[];
   runtimeMetadata: {
     durationMs: number;
     iterations: number;

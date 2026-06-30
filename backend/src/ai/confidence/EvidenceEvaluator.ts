@@ -5,8 +5,10 @@ export class EvidenceEvaluator {
   /**
    * Assesses the completeness, quantity, and relevance of evidence gathered during reasoning.
    */
-  public evaluate(state: DecisionState): { quality: EvidenceQuality; evidenceScore: number; notes: string[] } {
+  public evaluate(state: DecisionState): { quality: EvidenceQuality; evidenceScore: number; notes: string[]; positiveFactors: string[]; negativeFactors: string[] } {
     const notes: string[] = [];
+    const positiveFactors: string[] = [];
+    const negativeFactors: string[] = [];
     const observations = state.observations;
     const evidencePlans = state.evidencePlans;
     
@@ -25,16 +27,20 @@ export class EvidenceEvaluator {
 
     if (totalPlans > 0 && completedPlans === totalPlans) {
       notes.push('All evidence plans were successfully fulfilled.');
+      positiveFactors.push('All evidence plans were successfully fulfilled.');
     } else if (totalPlans > 0 && completedPlans < totalPlans) {
       notes.push(`Only ${completedPlans} out of ${totalPlans} evidence plans were fulfilled.`);
+      negativeFactors.push(`Only ${completedPlans} out of ${totalPlans} evidence plans were fulfilled.`);
     }
 
     if (failures > 0) {
       notes.push(`${failures} observations returned failures or timeouts.`);
+      negativeFactors.push(`${failures} observations returned failures or timeouts.`);
     }
 
     if (totalPlans === 0 && observations.length === 0) {
       notes.push('No evidence was planned or gathered. Relying entirely on initial perception.');
+      negativeFactors.push('No evidence was planned or gathered. Relying entirely on initial perception.');
     }
 
     // Determine numerical score (0 to 100)
@@ -68,6 +74,6 @@ export class EvidenceEvaluator {
       quality = EvidenceQuality.INSUFFICIENT;
     }
 
-    return { quality, evidenceScore, notes };
+    return { quality, evidenceScore, notes, positiveFactors, negativeFactors };
   }
 }

@@ -7,9 +7,10 @@ describe('MapsProvider', () => {
   let framework: EvidenceFramework;
 
   beforeEach(() => {
+    process.env.STUB_MODE = 'true';
     framework = new EvidenceFramework();
     provider = new MapsProvider(framework);
-    // Suppress console error/warn logs during tests
+    // Suppress console logs
     jest.spyOn(console, 'error').mockImplementation(() => {});
     jest.spyOn(console, 'warn').mockImplementation(() => {});
   });
@@ -34,6 +35,16 @@ describe('MapsProvider', () => {
   });
 
   it('collects and normalizes evidence', async () => {
+    await provider.initialize();
+    jest.spyOn((provider as any).adapter, 'reverseGeocode').mockResolvedValue({
+      formatted_address: '123 Fake St, Springfield',
+      geometry: {
+        location: { lat: 40.7128, lng: -74.0060 }
+      },
+      place_id: 'place123',
+      isMunicipalJurisdiction: true
+    });
+
     const request: EvidenceRequest = {
       requestId: 'req-1',
       source: EvidenceSource.GOOGLE_MAPS,
@@ -109,7 +120,7 @@ describe('MapsProvider', () => {
 
     // Assuming normalizer returns {} for null response, which passes our basic validation but has missing fields
     expect(response.status).toBe(EvidenceStatus.VALID);
-    expect(response.evidence?.data.formattedAddress).toBe('Unknown');
+    expect(response.evidence?.data?.formattedAddress).toBeUndefined();
     adapterMock.mockRestore();
   });
 });

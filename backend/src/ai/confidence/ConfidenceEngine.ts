@@ -54,12 +54,21 @@ export class ConfidenceEngine {
         evidenceAssessment.quality
       );
 
+      const explanation = {
+        evidenceScore: evidenceAssessment.evidenceScore,
+        reasoningScore: reasoningAssessment.reasoningScore,
+        positiveFactors: [...evidenceAssessment.positiveFactors, ...reasoningAssessment.positiveFactors],
+        negativeFactors: [...evidenceAssessment.negativeFactors, ...reasoningAssessment.negativeFactors],
+        recommendation: `Based on a ${thresholdAssessment.confidenceLevel} score, human review is ${reviewRecommendation.toLowerCase().includes('not') ? 'not required' : 'recommended'}.`
+      };
+
       const metadata: ConfidenceMetadata = {
         confidenceValue,
         confidenceLevel: thresholdAssessment.confidenceLevel,
         evidenceQuality: evidenceAssessment.quality,
         evaluationSummary: 'Confidence evaluated deterministically based on reasoning stability and evidence quality.',
         supportingFactors: [...evidenceAssessment.notes, ...reasoningAssessment.notes],
+        explanation,
         escalationRequired: thresholdAssessment.escalationRequired,
         escalationReason: thresholdAssessment.escalationReason,
         reviewRecommendation

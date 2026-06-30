@@ -7,6 +7,7 @@ import { RuntimeLogger } from './RuntimeLogger';
 import { RuntimeMetrics } from './RuntimeMetrics';
 import { PerceptionResult, DecisionState } from '../reasoning/models/decisionModels';
 import { ConfidenceEngine } from '../confidence/ConfidenceEngine';
+import { PriorityValidator } from '../reasoning/PriorityValidator';
 import { FinalAIResponse, RuntimeStatus } from './models/runtimeModels';
 
 export class RuntimeCoordinator {
@@ -38,8 +39,13 @@ export class RuntimeCoordinator {
       // Stages 2, 3, 4 - Coordinated Execution
       decisionState = await this.executionController.executeReasoningLoop(perception, stateManager);
 
-      // Stage 5 - Confidence Evaluation
+      // Stage 5 - Confidence Evaluation & Priority Validation
       if (decisionState && decisionState.stopped && decisionState.decisionResult) {
+        decisionState.decisionResult.priorityRecommendation = PriorityValidator.validatePriority(
+          decisionState.decisionResult.issueClassification,
+          decisionState.decisionResult.priorityRecommendation
+        );
+        
         const confidenceResult = this.confidenceEngine.evaluate(decisionState);
         confidenceMetadata = confidenceResult.metadata;
       }
@@ -54,6 +60,11 @@ export class RuntimeCoordinator {
         this.failureCoordinator.handleFailure(error, stateManager);
       } catch (fatalError) {
         // Fatal error thrown by failure coordinator - caught so we can build failure response
+        stateManager.setStatus(RuntimeStatus.FAILED);
+      }
+      // Guarantee deterministic failure response
+      if (stateManager.getState().status !== RuntimeStatus.FAILED) {
+        stateManager.setStatus(RuntimeStatus.FAILED);
       }
       this.metrics.recordExecution(stateManager.getState(), false);
     }
@@ -62,7 +73,8 @@ export class RuntimeCoordinator {
     return this.responseBuilder.buildResponse(
       stateManager.getState(),
       decisionState ? decisionState.decisionResult : null,
-      confidenceMetadata
+      confidenceMetadata,
+      decisionState ? decisionState.observations : []
     );
   }
 }

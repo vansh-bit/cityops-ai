@@ -7,7 +7,7 @@ describe('ProviderScheduler', () => {
     const mockProvider: EvidenceProvider = {
       initialize: async () => {},
       validateRequest: (req) => req.source === EvidenceSource.GOOGLE_MAPS,
-      collectEvidence: async (req) => ({ requestId: req.requestId, status: EvidenceStatus.VALID, evidence: null })
+      collectEvidence: async (req) => ({ requestId: req.requestId, source: req.source, status: EvidenceStatus.VALID, evidence: null })
     };
 
     const scheduler = new ProviderScheduler([mockProvider]);

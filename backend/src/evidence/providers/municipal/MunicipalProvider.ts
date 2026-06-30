@@ -8,6 +8,7 @@ export class MunicipalProvider implements EvidenceProvider {
   private adapter: MunicipalDataAdapter;
   private normalizer: MunicipalNormalizer;
   private framework: EvidenceFramework;
+  private initialized = false;
 
   constructor(framework: EvidenceFramework) {
     this.adapter = new MunicipalDataAdapter();
@@ -17,6 +18,7 @@ export class MunicipalProvider implements EvidenceProvider {
 
   async initialize(): Promise<void> {
     await this.adapter.initialize();
+    this.initialized = true;
   }
 
   validateRequest(request: EvidenceRequest): boolean {
@@ -30,6 +32,10 @@ export class MunicipalProvider implements EvidenceProvider {
     const { locationQuery } = request.parameters;
 
     try {
+      if (!this.initialized) {
+        await this.initialize();
+      }
+
       const rawData = await this.adapter.fetchAssetContext(locationQuery);
       const normalizedData = this.normalizer.normalize(rawData);
       
@@ -41,12 +47,14 @@ export class MunicipalProvider implements EvidenceProvider {
 
       return {
         requestId: request.requestId,
+        source: EvidenceSource.MUNICIPAL,
         status: EvidenceStatus.VALID,
         evidence
       };
     } catch (error: any) {
       return {
         requestId: request.requestId,
+        source: EvidenceSource.MUNICIPAL,
         status: EvidenceStatus.ERROR,
         evidence: null,
         errors: [error.message]

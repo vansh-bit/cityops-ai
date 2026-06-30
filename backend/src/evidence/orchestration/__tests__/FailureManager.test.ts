@@ -1,10 +1,11 @@
 import { FailureManager } from '../failure/FailureManager';
-import { EvidenceResponse, EvidenceStatus } from '../../contracts/evidenceContracts';
+import { EvidenceResponse, EvidenceStatus, EvidenceSource } from '../../contracts/evidenceContracts';
 
 describe('FailureManager', () => {
   it('resolves with provider response if within timeout', async () => {
     const mockResponse: EvidenceResponse = {
       requestId: 'req-1',
+      source: EvidenceSource.VISION_ANALYSIS,
       status: EvidenceStatus.VALID,
       evidence: null, // mock
     };

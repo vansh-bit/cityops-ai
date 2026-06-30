@@ -23,11 +23,20 @@ export interface ThresholdConfig {
   mediumThreshold: number; // e.g. 50
 }
 
+export interface ConfidenceExplanation {
+  evidenceScore: number;
+  reasoningScore: number;
+  positiveFactors: string[];
+  negativeFactors: string[];
+  recommendation: string;
+}
+
 export interface ConfidenceMetadata {
   confidenceValue: number; // 0 to 100
   confidenceLevel: ConfidenceLevel;
   evaluationSummary: string;
-  supportingFactors: string[];
+  supportingFactors: string[]; // Keeping for backward compatibility
+  explanation: ConfidenceExplanation;
   evidenceQuality: EvidenceQuality;
   escalationRequired: boolean;
   escalationReason?: string;

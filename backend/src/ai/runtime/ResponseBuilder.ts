@@ -9,7 +9,8 @@ export class ResponseBuilder {
   public buildResponse(
     runtimeState: RuntimeState,
     decisionResult: DecisionResult | null,
-    confidenceMetadata: ConfidenceMetadata | null
+    confidenceMetadata: ConfidenceMetadata | null,
+    evidence?: any[]
   ): FinalAIResponse {
     const startTime = new Date(runtimeState.startTime).getTime();
     const endTime = runtimeState.endTime 
@@ -23,6 +24,7 @@ export class ResponseBuilder {
       status: runtimeState.status,
       decision: decisionResult,
       confidence: confidenceMetadata,
+      evidence,
       runtimeMetadata: {
         durationMs,
         iterations: runtimeState.currentIteration,

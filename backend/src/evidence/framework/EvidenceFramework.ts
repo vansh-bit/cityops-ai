@@ -30,6 +30,7 @@ export class EvidenceFramework {
         
         return {
           requestId: request.requestId,
+          source: request.source,
           status: EvidenceStatus.ERROR,
           evidence: null,
           errors
@@ -56,6 +57,7 @@ export class EvidenceFramework {
           
           return {
             requestId: request.requestId,
+            source: request.source,
             status: EvidenceStatus.ERROR,
             evidence: null,
             errors: validationErrors
@@ -68,6 +70,7 @@ export class EvidenceFramework {
         EvidenceLogger.logEvidenceValidationFailed(providerId, request.requestId, errors);
         return {
           requestId: request.requestId,
+          source: request.source,
           status: EvidenceStatus.ERROR,
           evidence: null,
           errors
@@ -91,6 +94,7 @@ export class EvidenceFramework {
       
       return {
         requestId: request.requestId,
+        source: request.source,
         status: EvidenceStatus.ERROR,
         evidence: null,
         errors: [error.message]

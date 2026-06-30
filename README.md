@@ -19,6 +19,57 @@ cityops-ai/
 └── .github/          # CI/CD workflows
 ```
 
+## Runtime Architecture
+
+The CityOps AI backend utilizes a deterministic, multi-layered runtime architecture to evaluate citizen reports.
+
+```
+Citizen Upload
+        ↓
+Gemini Vision
+        ↓
+VisionResult
+        ↓
+Evidence Coordinator
+        ↓
+Google Maps Provider
+        ↓
+Evidence Aggregator
+        ↓
+EvidencePackage
+        ↓
+Decision Engine
+        ↓
+Confidence Engine
+        ↓
+Municipality Report
+        ↓
+Persistence Coordinator
+        ↓
+Tracking ID Generator
+        ↓
+Cloud Storage Provider
+        ↓
+Firestore Provider
+        ↓
+Submission Response
+```
+
+## Features
+
+- **Vision Layer**: Analyzes citizen-uploaded images using Gemini Vision to detect municipal issues.
+- **Evidence Layer**: Collects real-world contextual geographic evidence (Google Maps) to enrich AI decision making.
+- **Decision Engine**: Generates municipal incident categorizations, department assignments, and reasoning.
+- **Confidence Engine**: Evaluates the quality of evidence and reasoning to assign a confidence score and escalation flags.
+- **Persistence Layer**: Securely stores images in Firebase Cloud Storage, assigns unique Tracking IDs, and persists immutable reports to Firestore atomically.
+
+## Implementation Status
+
+- **Milestone 1-4**: Complete and Locked.
+- **Milestone 5 Phase 5A (Vision Integration)**: Complete and Locked.
+- **Milestone 5 Phase 5B (Evidence Collection)**: Complete and Locked.
+- **Milestone 5 Phase 5C (Persistence Layer)**: In Progress.
+
 ## Prerequisites
 
 - **Node.js** >= 20.x (LTS)
@@ -139,6 +190,7 @@ Service definitions are in `deployment/cloudrun/`. See the Cloud Run documentati
 
 ## Documentation
 
+- [Project Status](docs/PROJECT_STATUS.md)
 - [Project Spec](docs/PROJECT_SPEC.md)
 - [Implementation Plan](docs/IMPLEMENTATION_PLAN.md)
 - [Changelog](docs/CHANGELOG.md)

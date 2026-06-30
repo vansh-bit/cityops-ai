@@ -1,6 +1,6 @@
 # IMPLEMENTATION_CONTEXT.md
 
-# Milestone 5 — Phase 5A
+# Milestone 5 — Phase 5C
 
 ## Implementation Context
 
@@ -8,97 +8,65 @@
 
 # Supporting Engineering Specifications
 
-This document defines architectural constraints and implementation boundaries.
+The following documents provide the engineering specifications required to implement Phase 5C.
 
-The following documents provide the engineering specifications required to implement Phase 5A.
-
-- GEMINI_PROMPT_SPEC.md
-- VISION_RESULT_SCHEMA.md
+- FIRESTORE_SPEC.md
+- CLOUD_STORAGE_SPEC.md
+- TRACKING_ID_SPEC.md
 - API_CONTRACT.md
 - ERROR_HANDLING.md
 - TEST_PLAN.md
 
-These documents are considered normative.
-
-Where conflicts exist, these engineering specifications take precedence over implementation assumptions.
-
 # Purpose
 
-This document defines the implementation boundaries, architectural constraints, engineering objectives, and acceptance criteria for **Milestone 5 – Phase 5A**.
+This document defines the implementation boundaries, architectural constraints, engineering objectives, and acceptance criteria for Milestone 5 – Phase 5C.
 
-Its purpose is to ensure implementation remains fully aligned with the architecture established during Milestones 1–4 while integrating the first production AI capability into CityOps AI.
+Phase 5C introduces the **Persistence Layer** to CityOps AI. 
+The objective is to permanently store completed municipal incident reports using Firebase Cloud Storage and Firestore while generating a globally unique Tracking ID.
 
-This document is **implementation guidance**, not a design specification.
+The core AI runtime architecture validated during Phase 5A and Phase 5B remains unchanged and fully isolated from the Persistence Layer.
 
 ---
 
 # Phase Objective
 
-Replace the simulated Vision Provider with a production Gemini Vision implementation while preserving the existing AI Runtime architecture.
+Implement the Persistence Layer consisting of the Persistence Coordinator, Tracking ID Generator, Cloud Storage Provider, and Firestore Provider. 
 
-The end result should allow a user to upload a real image and receive a complete AI-generated municipal incident assessment using the existing runtime pipeline.
-
-No architectural redesign is permitted.
+Persistence begins ONLY after Municipality Report generation. No runtime reasoning shall occur inside the Persistence Layer.
 
 ---
 
 # Primary Goal
 
-Current workflow:
-
 Citizen Upload
-
-↓
-
-Mock Vision Provider
-
-↓
-
-Decision Engine
-
-↓
-
-Evidence Layer
-
-↓
-
-Confidence Engine
-
-↓
-
-Municipality Report
-
-Target workflow:
-
-Citizen Upload
-
-↓
-
+        ↓
 Gemini Vision
-
-↓
-
-Structured Vision Analysis
-
-↓
-
+        ↓
+VisionResult
+        ↓
+Evidence Coordinator
+        ↓
+Google Maps Provider
+        ↓
+Evidence Aggregator
+        ↓
+EvidencePackage
+        ↓
 Decision Engine
-
-↓
-
-Evidence Layer
-
-↓
-
+        ↓
 Confidence Engine
-
-↓
-
+        ↓
 Municipality Report
-
-Only the Vision Provider changes.
-
-Everything downstream continues operating exactly as designed.
+        ↓
+Persistence Coordinator
+        ↓
+Tracking ID Generator
+        ↓
+Cloud Storage Provider
+        ↓
+Firestore Provider
+        ↓
+Submission Response
 
 ---
 
@@ -107,48 +75,16 @@ Everything downstream continues operating exactly as designed.
 The following principles are mandatory.
 
 ## Principle 1
-
-The AI Runtime is considered architecturally complete.
-
-Do not redesign it.
-
----
+The AI Runtime is architecturally complete. Do not redesign it.
 
 ## Principle 2
-
-Existing interfaces must remain compatible.
-
-Production services should replace implementations—not contracts.
-
----
+Persistence logic (Cloud Storage, Firestore) must be strictly isolated behind Provider abstractions.
 
 ## Principle 3
-
-The Decision Engine must never communicate directly with Gemini.
-
-Communication must continue through the existing provider architecture.
-
----
+No AI reasoning or evidence collection shall occur inside the Persistence Layer.
 
 ## Principle 4
-
-The Confidence Engine remains unchanged.
-
-Its inputs may improve because production evidence is available, but its logic is not modified during Phase 5A.
-
----
-
-## Principle 5
-
-Evidence Orchestration remains unchanged.
-
-Only the Vision Provider implementation changes.
-
-## Principle 6
-
-Production integrations shall remain replaceable.
-
-External services (Gemini, Google Maps, Firebase) must remain encapsulated behind provider abstractions so that implementations can be replaced without affecting downstream runtime components.
+Persistence must be atomic. Either the image and report both persist successfully, or neither persists. The runtime shall never persist partial reports.
 
 ---
 
@@ -156,40 +92,25 @@ External services (Gemini, Google Maps, Firebase) must remain encapsulated behin
 
 ## Included
 
-* Google Gemini 2.5 Flash Vision integration using the official Google Gen AI SDK.
-
-Model selection and prompt engineering are defined in:
-
-GEMINI_PROMPT_SPEC.md
-
-* Production Vision Provider
-* Image upload
-* Runtime integration
-* Structured response parsing according to the canonical VisionResult schema defined in
-
-VISION_RESULT_SCHEMA.md
-* Validation
-* Error handling
-* Logging
-* Testing
-
----
+- Persistence Coordinator
+- Tracking ID Generator
+- Cloud Storage Provider
+- Firestore Provider
+- Submission Response Generation
+- Atomic persistence orchestration
+- Logging and Error Handling
+- Automated testing
 
 ## Explicitly Excluded
 
-Do NOT implement:
-
-* Firestore
-* Cloud Storage
-* Google Maps
-* Municipality Dashboard
-* Authentication
-* Notifications
-* Analytics
-* Role management
-* Report persistence
-
-These belong to later phases.
+- Duplicate Detection
+- Authentication
+- Notifications
+- Dashboards
+- User Accounts
+- Analytics
+- Municipality Workflow
+- Report Tracking Portal
 
 ---
 
@@ -197,236 +118,79 @@ These belong to later phases.
 
 The implementation should introduce or complete the following logical components.
 
-## Frontend
-
-* Upload interface
-* Image preview
-* Upload validation
-* Runtime request generation
-* Error presentation
-
----
-
 ## Backend
 
-* Gemini Vision Provider
-* Prompt construction
-* Response parser
-* Runtime integration
-* Failure handling
-
----
+- `PersistenceCoordinator`: Orchestrates the persistence workflow.
+- `TrackingIdGenerator`: Generates `CTS-YYYY-XXXXXXXX` identifiers.
+- `CloudStorageProvider`: Uploads the image and returns a permanent URL.
+- `FirestoreProvider`: Creates the single immutable report document containing all runtime outputs.
 
 ## Infrastructure
 
-* Environment configuration
-* API key management
-* Request timeout handling
-* Structured logging
+- Firebase Admin SDK configuration
+- Cloud Storage Buckets
+- Firestore Database initialization
+- Structured logging
 
-# Gemini Provider Architecture
-The production Vision Provider shall implement the existing VisionProvider abstraction.
+---
 
-Direct communication between the Decision Engine and Gemini is prohibited.
+# Persistence Layer Architecture
 
-Gemini-specific logic shall remain encapsulated inside the GeminiVisionProvider implementation.
+The Persistence Layer handles the final step of the report lifecycle. 
 
-The provider shall:
+The `PersistenceCoordinator` receives the completed runtime outputs (VisionResult, EvidencePackage, Decision, Confidence, Municipality Report, and the uploaded image buffer).
 
-• construct prompts
-• communicate with Gemini
-• validate responses
-• normalize output
-• return a VisionResult object
+It executes the following flow:
+1. Calls `TrackingIdGenerator` to obtain a unique Tracking ID.
+2. Calls `CloudStorageProvider` to upload the image buffer and retrieve a storage URL.
+3. Calls `FirestoreProvider` to save the comprehensive report document (including the storage URL and Tracking ID).
+4. Returns the final `SubmissionResponse` to the API layer.
 
-No Gemini-specific response format shall propagate beyond the provider boundary.
+The Persistence Layer shall never modify the runtime outputs. It only persists them.
+
+---
 
 # API Contract
 
-Frontend and backend communication SHALL conform to the contract defined in
+Frontend and backend communication SHALL conform to the extended contract defined in `API_CONTRACT.md`.
 
-API_CONTRACT.md
+This includes returning the newly introduced fields:
+- `trackingId`
+- `submissionStatus`
+- `storageUrl` (internal/public)
 
-This includes:
-
-- upload endpoint
-
-- request payload
-
-- response payload
-
-- error responses
-
-- HTTP status codes
-
-Implementations shall not introduce undocumented API behaviour.
----
-
-# Expected Runtime Flow
-
-Citizen Upload
-
-↓
-
-Upload Validation
-
-↓
-
-GeminiVisionProvider
-
-↓
-
-VisionResult Schema
-
-↓
-
-Decision Engine
-
-↓
-
-Existing Evidence Orchestration
-
-↓
-
-Confidence Engine
-
-↓
-
-Municipality Report
-
-The runtime coordinator should remain the orchestration entry point.
-
----
-
-# Gemini Output Requirements
-
-Gemini responses must be structured.
-
-Free-form conversational responses are not acceptable.
-
-The provider SHALL return a VisionResult object that conforms exactly to the schema defined in VISION_RESULT_SCHEMA.md.
-
-The provider shall return:
-
-- detected issue
-- severity
-- observations
-- potential hazards
-- infrastructure affected
-- inspection priority
-- reasoning summary
-- limitations
-
-The rest of the runtime should not need to understand Gemini-specific response formats.
-
-The Confidence Engine remains solely responsible for calculating confidence scores and escalation decisions.
-
----
-
-Failure handling behaviour, retry policy, timeout strategy, safety filter handling, and user-facing error responses are defined in
-
-ERROR_HANDLING.md
-
-The implementation shall conform to those specifications.
-
-The runtime must never terminate unexpectedly.
-
-Meaningful errors should be returned to the user.
+The contract clearly distinguishes the difference between raw Analysis output and a Successful Submission Response.
 
 ---
 
 # Logging Requirements
 
-Structured logging should include:
+Structured logging shall include:
 
-* upload received
-* Gemini request started
-* Gemini response received
-* parsing completed
-* runtime execution started
-* runtime completed
-* execution duration
-* errors
-
-Sensitive information must never be logged.
+- Persistence started
+- Tracking ID generated
+- Cloud Storage upload completed
+- Firestore document created
+- Persistence completed
+- Execution duration
+- Persistence rollback/failures
 
 ---
 
 # Testing Requirements
 
-Testing requirements are defined in
+Testing shall verify:
 
-TEST_PLAN.md.
+- Cloud Storage uploads
+- Firestore document creation
+- Tracking ID generation and uniqueness
+- Persistence Coordinator orchestration
+- Atomic persistence verification
+- Rollback verification on failure
+- Error handling (Permissions, Network, Timeouts)
 
-Implementation shall satisfy all mandatory test cases prior to review.
+Implementation is considered complete only when all acceptance criteria defined in `TEST_PLAN.md` have been satisfied.
 
-## Upload
-
-* valid image
-* invalid format
-* oversized image
-* empty upload
-
----
-
-## Gemini
-
-* successful response
-* malformed response
-* timeout
-* API failure
-
----
-
-## Runtime
-
-* provider integration
-* decision generation
-* confidence evaluation
-* report generation
-
----
-
-# Deliverables
-
-Implementation is expected to produce:
-
-* Production Vision Provider
-* Upload workflow
-* Gemini integration
-* Runtime integration
-* Validation
-* Tests
-* Documentation
-* Evidence screenshots
-
----
-
-# Evidence Required
-
-Capture evidence demonstrating:
-
-* Upload interface
-* Successful Gemini analysis
-* Runtime execution
-* Decision summary
-* Confidence evaluation
-* Municipality report
-* End-to-end workflow
-
----
-
-Implementation is considered complete only when all acceptance criteria defined in
-
-TEST_PLAN.md
-
-and
-
-Phase5A.md
-
-have been satisfied.
-
-Implementation review shall verify compliance before approval.
 ---
 
 # Implementation Constraints
@@ -435,21 +199,29 @@ The following are mandatory.
 
 DO NOT:
 
-* redesign architecture
-* modify runtime contracts
-* bypass provider interfaces
-* directly couple Gemini to business logic
-* introduce unnecessary dependencies
-* expand scope beyond Phase 5A
+* redesign the Vision, Evidence, Decision, or Confidence layers.
+* persist partial reports (missing image or missing document).
+* expose Firestore or Cloud Storage implementation details to the frontend.
+* tightly couple persistence to the AI business logic.
+* introduce out-of-scope features.
 
-Implementation quality is more important than implementation speed.
-
-Maintain the architectural discipline established throughout previous milestones.
+Implementation quality is more important than implementation speed. Maintain the architectural discipline established throughout previous milestones.
 
 ---
 
+# Deliverables
+
+Implementation is expected to produce:
+
+- Persistence Coordinator
+- Tracking ID Generator
+- Cloud Storage Provider
+- Firestore Provider
+- Automated tests verifying atomic persistence
+- Error Handling updates
+
 # Definition of Success
 
-Phase 5A should demonstrate that CityOps AI can replace simulated intelligence with real multimodal AI while preserving the architecture validated during Milestones 1–4.
+Phase 5C is successful when CityOps AI reliably and atomically stores successfully analyzed citizen reports in Firestore with associated Cloud Storage imagery and a unique Tracking ID.
 
-Success is measured not by the amount of new code written, but by the seamless integration of production AI services into the existing autonomous decision pipeline without compromising modularity, maintainability, explainability, or runtime stability.
+Success is measured by the seamless addition of the Persistence Layer without compromising the stability, speed, or modularity of the existing AI runtime.

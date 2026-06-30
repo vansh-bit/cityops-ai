@@ -1,6 +1,6 @@
 # API_CONTRACT.md
 
-# Milestone 5 — Phase 5A
+# Milestone 5 — Phase 5C
 
 ## Frontend–Backend API Contract
 
@@ -8,10 +8,9 @@
 
 # Purpose
 
-This document defines the canonical API contract between the CityOps AI frontend and backend for **Phase 5A**.
+This document defines the canonical API contract between the CityOps AI frontend and backend for **Phase 5C**.
 
-Its purpose is to establish a stable communication interface for image analysis using the production Gemini Vision Provider.
-
+Its purpose is to establish a stable communication interface for AI-powered municipal incident analysis, now culminating in atomic persistence via Firebase Cloud Storage and Firestore.
 The frontend and backend shall communicate only through the interfaces defined in this document.
 
 Undocumented request or response formats are prohibited.
@@ -30,9 +29,9 @@ The API shall be:
 * Backward compatible
 * Independent of Gemini-specific formats
 
-The frontend must never receive raw Gemini responses.
+The frontend must never receive raw Gemini responses or internal persistence structures.
 
-All Gemini output shall be normalized by the GeminiVisionProvider before being returned.
+All AI output shall be normalized by the providers before being returned.
 
 ---
 
@@ -54,7 +53,7 @@ Base Route
 
 # Endpoint
 
-## Analyze Image
+## Submit Incident Report
 
 ```http
 POST /api/v1/analyze
@@ -62,7 +61,7 @@ POST /api/v1/analyze
 
 Purpose
 
-Accept a citizen-submitted image, execute the complete Phase 5A runtime, and return the generated municipal incident analysis.
+Accept a citizen-submitted image, execute the complete Phase 5C runtime (including analysis, evidence gathering, and atomic persistence), and return the final Submission Response.
 
 ---
 
@@ -78,13 +77,24 @@ multipart/form-data
 
 ## Request Fields
 
-| Field       | Type    | Required | Description                                    |
-| ----------- | ------- | -------- | ---------------------------------------------- |
-| image       | File    | Yes      | Uploaded incident image                        |
-| latitude    | Number  | No       | Optional location (reserved for future phases) |
-| longitude   | Number  | No       | Optional location (reserved for future phases) |
-| description | String  | No       | Optional citizen description                   |
-| demoMode    | Boolean | No       | Indicates demo execution                       |
+| Field       | Type    | Required | Description                    |
+| ----------- | ------- | -------- | ------------------------------ |
+| image       | File    | Yes      | Uploaded incident image        |
+| latitude    | String  | Yes      | Latitude of incident location  |
+| longitude   | String  | Yes      | Longitude of incident location |
+| description | String  | No       | Optional citizen description   |
+
+*(Note: `demoMode` and other undocumented fields are not supported.)*
+
+---
+
+## Serialization Boundary
+
+Because the request uses `multipart/form-data`, all non-file fields are transmitted as strings.
+- The frontend submits `latitude` and `longitude` as strings.
+- The backend validates these string values.
+- The backend converts them to numeric coordinates (`Number`) before runtime execution.
+- Invalid coordinate values result in an `INVALID_COORDINATES` HTTP 400 validation error.
 
 ---
 
@@ -105,7 +115,9 @@ multipart/form-data
 
 ---
 
-# Successful Response
+# Successful Submission Response
+
+In Phase 5C, a successful request guarantees that the report has been atomically persisted. The response returned is a **Successful Submission Response**, extending the previous Analysis Response.
 
 ## HTTP Status
 
@@ -120,46 +132,43 @@ multipart/form-data
 ```json
 {
   "success": true,
-  "requestId": "req_123456789",
-  "timestamp": "2026-06-30T10:45:00Z",
+  "trackingId": "9bX2pLq4vM8cW",
+  "submissionStatus": "SUBMITTED",
+  "timestamp": "2026-07-01T10:45:00Z",
+
+  "persistence": {
+    "firestoreStatus": "PERSISTED",
+    "cloudStorageStatus": "UPLOADED",
+    "storageObjectPath": "gs://cityops-ai-storage/reports/9bX2pLq4vM8cW/original.jpg"
+  },
 
   "visionResult": {
-    "issueType": "POTHOLE",
-    "severity": "HIGH",
-    "description": "Large pothole visible on the roadway.",
-    "observations": [
-      "Road surface collapse",
-      "Standing water"
-    ],
-    "potentialHazards": [
-      "Vehicle damage",
-      "Motorcycle safety risk"
-    ],
-    "infrastructure": "ROAD",
-    "inspectionPriority": "HIGH",
-    "reasoningSummary": "Visible structural damage requiring inspection.",
-    "limitations": []
+    "...": "See VISION_RESULT_SCHEMA.md"
+  },
+
+  "evidencePackage": {
+    "...": "See EVIDENCE_SCHEMA.md"
   },
 
   "decision": {
     "category": "ROAD_DAMAGE",
     "priority": "HIGH",
     "assignedDepartment": "Public Works",
-    "reasoning": "Road damage presents a public safety hazard."
+    "reasoning": "Road damage confirmed using visual and contextual evidence."
   },
 
   "confidence": {
-    "overallScore": 91,
+    "overallScore": 94,
     "confidenceLevel": "HIGH",
     "escalationRequired": false,
-    "reasoning": "Strong visual evidence with minimal ambiguity."
+    "reasoning": "Vision analysis supported by verified location evidence."
   },
 
   "report": {
     "reportTitle": "Road Damage Incident",
-    "summary": "Large pothole detected.",
-    "recommendedAction": "Dispatch inspection team.",
-    "status": "READY_FOR_SUBMISSION"
+    "summary": "Large pothole detected on public roadway.",
+    "recommendedAction": "Dispatch road maintenance team.",
+    "status": "SUBMITTED"
   }
 }
 ```
@@ -168,7 +177,20 @@ multipart/form-data
 
 # Response Components
 
-The backend returns four normalized objects.
+The backend returns seven normalized objects.
+
+---
+
+## trackingId & persistence
+
+Produced by:
+
+Persistence Coordinator, Tracking ID Generator, Cloud Storage Provider, and Firestore Provider.
+
+Purpose:
+
+Provides the cryptographically secure, random, globally unique `trackingId` and confirms atomic persistence.
+The `persistence` object includes `firestoreStatus`, `cloudStorageStatus`, and `storageObjectPath` (canonical reference) providing the frontend with direct confirmation that the upload was saved. No publicly readable bucket URLs are exposed. Application-generated signed URLs or authorized access mechanisms must be used for future retrieval.
 
 ---
 
@@ -186,7 +208,20 @@ Contract:
 
 Must conform exactly to VISION_RESULT_SCHEMA.md.
 
-The frontend must never consume raw Gemini responses.
+---
+## evidencePackage
+
+Produced by:
+
+Evidence Collection Layer
+
+Purpose:
+
+Represents contextual information collected from external evidence providers.
+
+Must conform to:
+
+EVIDENCE_SCHEMA.md
 
 ---
 
@@ -207,8 +242,6 @@ Contains:
 - assigned department
 - reasoning summary
 
-The Decision Engine remains the sole owner of this object.
-
 ---
 
 ## confidence
@@ -228,8 +261,6 @@ Contains:
 - escalationRequired
 - reasoning
 
-Gemini never produces confidence values.
-
 ---
 
 ## report
@@ -247,15 +278,25 @@ Contains:
 - report title
 - executive summary
 - recommended action
-- report status
-
-Future milestones may extend this object with tracking information and persistence metadata while maintaining backward compatibility.
+- report status (now updated to `SUBMITTED` post-persistence)
 
 ---
 
 # Error Responses
 
 All failures return structured JSON.
+## Successful Execution
+
+HTTP
+
+200 OK
+
+Always returned when:
+- Vision analysis succeeds.
+- Runtime executes successfully.
+- Persistence Coordinator successfully saves the image to Cloud Storage and report to Firestore.
+
+If Evidence Providers return partial results or fail (e.g. Municipality Not Found or Maps Provider Failure), but persistence succeeds, a 200 OK is returned with `evidencePackage.overallStatus = PARTIAL`. Missing municipality continues following the existing Phase 5B philosophy: HTTP 200, `overallStatus = PARTIAL`, and the Decision Engine continues operating using available evidence.
 
 ---
 
@@ -263,18 +304,6 @@ All failures return structured JSON.
 
 ```http
 400 Bad Request
-```
-
-Example
-
-```json
-{
-  "success": false,
-  "error": {
-    "code": "INVALID_REQUEST",
-    "message": "Image file is required."
-  }
-}
 ```
 
 ---
@@ -317,6 +346,8 @@ Example
 500 Internal Server Error
 ```
 
+Includes persistence failures, Cloud Storage failures, or Firestore network issues.
+
 ---
 
 # Error Object
@@ -342,45 +373,57 @@ The frontend shall never depend on provider-specific error messages.
 Before runtime execution:
 
 - Image must exist.
+- Coordinates must be valid.
 - File type must be supported.
 - File size must not exceed limits.
-- Request format must be valid.
-
-Invalid requests shall never reach the Gemini Vision Provider.
 
 Before returning a successful response, the backend shall verify:
 
 - VisionResult conforms to VISION_RESULT_SCHEMA.md.
-- Decision object has been generated.
-- Confidence object has been generated.
-- Municipality Report object has been generated.
-- Response matches the API contract.
+- evidencePackage conforms to EVIDENCE_SCHEMA.md.
+- Decision object is complete.
+- Confidence object is present.
+- Municipality Report is generated.
+- Persistence successfully occurred.
+- Response conforms to the documented API contract.
 
-Incomplete or invalid responses shall never be returned to the frontend.
+Invalid responses shall never be returned to clients.
 ---
 
 # Runtime Behaviour
 
 Successful execution follows this sequence.
 
-```text
-Upload Image
-      ↓
-Request Validation
-      ↓
-GeminiVisionProvider
-      ↓
+```
+Citizen Upload
+        ↓
+Gemini Vision
+        ↓
 VisionResult
-      ↓
+        ↓
+Evidence Coordinator
+        ↓
+Google Maps Provider
+        ↓
+Evidence Aggregator
+        ↓
+evidencePackage
+        ↓
 Decision Engine
-      ↓
-Evidence Layer
-      ↓
+        ↓
 Confidence Engine
-      ↓
+        ↓
 Municipality Report
-      ↓
-HTTP Response
+        ↓
+Persistence Coordinator
+        ↓
+Tracking ID Generator
+        ↓
+Cloud Storage Provider
+        ↓
+Firestore Provider
+        ↓
+Submission Response
 ```
 
 The frontend communicates with a single endpoint.
@@ -397,8 +440,11 @@ The API shall:
 * Reject unsupported content types.
 * Never expose API keys.
 * Never expose raw Gemini responses.
-* Never expose internal runtime exceptions.
+* Never expose internal runtime exceptions or database paths.
 * Return sanitized error messages.
+* Validate latitude and longitude before external API requests.
+* Never expose raw Google Maps responses.
+* Never expose provider-specific implementation details.
 
 ---
 
@@ -407,15 +453,9 @@ The API shall:
 This contract is designed to evolve without breaking existing frontend implementations.
 
 Future milestones may extend the response with:
-
-- trackingId
-- firestoreDocumentId
-- uploadedImageUrl
 - municipalityId
 - evidenceSources
-- duplicateReportAnalysis
 - mapVerification
-- submissionStatus
 
 Existing required response fields shall remain backward compatible.
 
@@ -427,32 +467,28 @@ Breaking API changes require a new contract version.
 
 The API contract is considered complete when:
 
-* The frontend can submit a valid image.
-* The backend validates the request.
-* Gemini Vision is invoked successfully.
-* The runtime executes without exposing implementation details.
-* Responses conform to documented schemas.
-* Error handling is deterministic.
-* Future phases can extend the contract without breaking existing clients.
-
+- The frontend submits a valid citizen report.
+- Gemini Vision analysis completes successfully.
+- Evidence Providers enrich the analysis with contextual information.
+- The Persistence layer atomically uploads the image to a private Cloud Storage bucket and saves the report to Firestore with a unique Tracking ID.
+- Responses conform to documented schemas.
+- Error handling is deterministic.
 
 ---
 # Contract Ownership
 
 This document defines the public communication interface between the frontend and backend.
 
-Internal implementations of the Runtime Coordinator, Decision Engine, Confidence Engine, Municipality Report Generator, and GeminiVisionProvider may evolve independently provided they continue producing responses compliant with this contract.
-
-No implementation shall expose provider-specific responses directly to frontend consumers.
+Internal implementations of the Runtime Coordinator, Persistence Coordinator, Decision Engine, Confidence Engine, Municipality Report Generator, and Providers may evolve independently provided they continue producing responses compliant with this contract.
 
 # Version
 
 Contract Version
 
-v1.0
+v1.1
 
 Target Milestone
 
-Milestone 5 — Phase 5A
+Milestone 5 — Phase 5C
 
-This document is the authoritative specification governing all frontend–backend communication for production image analysis during Phase 5A.
+This document is the authoritative specification governing all frontend–backend communication for production image analysis and persistence during Phase 5C.

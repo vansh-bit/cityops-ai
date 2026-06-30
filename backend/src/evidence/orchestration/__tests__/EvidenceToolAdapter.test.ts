@@ -8,7 +8,7 @@ describe('EvidenceToolAdapter', () => {
     const mockProvider: EvidenceProvider = {
       initialize: async () => {},
       validateRequest: () => true,
-      collectEvidence: async (req) => ({ requestId: req.requestId, status: EvidenceStatus.VALID, evidence: { id: 'e1', metadata: { source: req.source } } } as any)
+      collectEvidence: async (req) => ({ requestId: req.requestId, source: req.source, status: EvidenceStatus.VALID, evidence: { id: 'e1', metadata: { source: req.source }, data: { location: {}, municipality: {}, infrastructure: {} } } } as any)
     };
 
     const coordinator = new EvidenceCoordinator([mockProvider]);
@@ -19,7 +19,7 @@ describe('EvidenceToolAdapter', () => {
     const response = await adapter.execute(inputs);
 
     expect(response.data).toBeDefined();
-    expect((response.data?.package as any).status).toBe(EvidenceStatus.VALID);
+    expect((response.data?.package as any).overallStatus).toBe(EvidenceStatus.VALID);
   });
 
   it('handles runtime cancellation or unexpected coordinator error gracefully by throwing', async () => {

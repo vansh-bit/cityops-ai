@@ -40,28 +40,30 @@ export class EvidenceCoordinator {
     } catch (error) {
       EvidenceOrchestrationLogger.logFailure(requestId, 'EvidenceCoordinator', error instanceof Error ? error.message : String(error));
       evidencePackage = {
-        packageId: 'failed-pkg-' + Date.now(),
         requestId,
-        status: EvidenceStatus.ERROR,
-        evidence: [],
-        errors: ['Orchestration failed unexpectedly: ' + (error instanceof Error ? error.message : String(error))],
-        metadata: {
-          orchestrationStartTime: new Date(startTimeMs).toISOString(),
-          orchestrationEndTime: new Date().toISOString(),
+        collectedAt: new Date().toISOString(),
+        overallStatus: EvidenceStatus.ERROR,
+        providers: requestedProviders.map(p => ({
+          provider: p,
+          status: 'ERROR',
           durationMs: Date.now() - startTimeMs,
-          providersRequested: requestedProviders,
-          providersCompleted: [],
-          providersFailed: requestedProviders
+          error: error instanceof Error ? error.message : String(error)
+        })),
+        limitations: ['Orchestration failed unexpectedly: ' + (error instanceof Error ? error.message : String(error))],
+        metadata: {
+          collectionDurationMs: Date.now() - startTimeMs,
+          providerCount: requestedProviders.length,
+          successfulProviders: 0,
+          failedProviders: requestedProviders.length
         }
       };
     }
 
-    // Provide the generated metrics to the package or log them
+    // Since EvidencePackageMetadata no longer has a metrics payload by default, we'll just log it.
     const metricsPayload = metrics.generateMetricsPayload();
-    evidencePackage.metadata.metrics = metricsPayload;
     
     EvidenceOrchestrationLogger.logAggregationEvent(requestId, metricsPayload.aggregationStatistics.totalProvidersCompleted, metricsPayload.aggregationStatistics.totalProvidersFailed);
-    EvidenceOrchestrationLogger.logCompletion(requestId, evidencePackage.status, evidencePackage.metadata.durationMs);
+    EvidenceOrchestrationLogger.logCompletion(requestId, evidencePackage.overallStatus, evidencePackage.metadata.collectionDurationMs);
 
     return evidencePackage;
   }

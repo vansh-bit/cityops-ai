@@ -6,6 +6,7 @@ import { EvidenceFramework } from '../../framework/EvidenceFramework';
 export class VisionProvider implements EvidenceProvider {
   private adapter: GeminiVisionAdapter;
   private framework: EvidenceFramework;
+  private initialized = false;
 
   constructor(framework: EvidenceFramework) {
     this.adapter = new GeminiVisionAdapter();
@@ -14,6 +15,7 @@ export class VisionProvider implements EvidenceProvider {
 
   async initialize(): Promise<void> {
     await this.adapter.initialize();
+    this.initialized = true;
   }
 
   validateRequest(request: EvidenceRequest): boolean {
@@ -31,6 +33,10 @@ export class VisionProvider implements EvidenceProvider {
     const { imageBuffer, mimeType, imageUrl } = request.parameters;
 
     try {
+      if (!this.initialized) {
+        await this.initialize();
+      }
+
       let visionResult;
       
       if (this.adapter.stubMode && !imageBuffer) {
@@ -49,12 +55,14 @@ export class VisionProvider implements EvidenceProvider {
 
       return {
         requestId: request.requestId,
+        source: EvidenceSource.VISION_ANALYSIS,
         status: EvidenceStatus.VALID,
         evidence
       };
     } catch (error: any) {
       return {
         requestId: request.requestId,
+        source: EvidenceSource.VISION_ANALYSIS,
         status: EvidenceStatus.ERROR,
         evidence: null,
         errors: [error.message]

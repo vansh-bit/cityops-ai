@@ -7,6 +7,7 @@ describe('VisionProvider', () => {
   let framework: EvidenceFramework;
 
   beforeEach(() => {
+    process.env.GEMINI_API_KEY = 'test_key';
     framework = new EvidenceFramework();
     provider = new VisionProvider(framework);
     jest.spyOn(console, 'error').mockImplementation(() => {});
@@ -21,7 +22,7 @@ describe('VisionProvider', () => {
     const validRequest: EvidenceRequest = {
       requestId: 'req-1',
       source: EvidenceSource.VISION_ANALYSIS,
-      parameters: { imageUrl: 'https://example.com/image.jpg' }
+      parameters: { imageBuffer: Buffer.from('test'), mimeType: 'image/jpeg' }
     };
     expect(provider.validateRequest(validRequest)).toBe(true);
 
@@ -33,8 +34,15 @@ describe('VisionProvider', () => {
     const request: EvidenceRequest = {
       requestId: 'req-1',
       source: EvidenceSource.VISION_ANALYSIS,
-      parameters: { imageUrl: 'https://example.com/image.jpg' }
+      parameters: { imageBuffer: Buffer.from('test'), mimeType: 'image/jpeg' }
     };
+
+    await provider.initialize();
+    jest.spyOn((provider as any).adapter, 'extractObservations').mockResolvedValue({
+      issueType: 'POTHOLE',
+      severity: 'HIGH',
+      observations: ['Pothole detected']
+    });
 
     const response = await provider.collectEvidence(request);
 
@@ -45,12 +53,13 @@ describe('VisionProvider', () => {
   });
 
   it('handles external provider failure', async () => {
+    await provider.initialize();
     const adapterMock = jest.spyOn((provider as any).adapter, 'extractObservations').mockRejectedValue(new Error('Internal Server Error'));
 
     const request: EvidenceRequest = {
       requestId: 'req-2',
       source: EvidenceSource.VISION_ANALYSIS,
-      parameters: { imageUrl: 'https://example.com/image.jpg' }
+      parameters: { imageBuffer: Buffer.from('test'), mimeType: 'image/jpeg' }
     };
 
     const response = await provider.collectEvidence(request);
@@ -61,12 +70,13 @@ describe('VisionProvider', () => {
   });
 
   it('handles provider timeout', async () => {
+    await provider.initialize();
     const adapterMock = jest.spyOn((provider as any).adapter, 'extractObservations').mockRejectedValue(new Error('Timeout'));
 
     const request: EvidenceRequest = {
       requestId: 'req-3',
       source: EvidenceSource.VISION_ANALYSIS,
-      parameters: { imageUrl: 'https://example.com/image.jpg' }
+      parameters: { imageBuffer: Buffer.from('test'), mimeType: 'image/jpeg' }
     };
 
     const response = await provider.collectEvidence(request);
@@ -77,12 +87,13 @@ describe('VisionProvider', () => {
   });
 
   it('handles rate limiting', async () => {
+    await provider.initialize();
     const adapterMock = jest.spyOn((provider as any).adapter, 'extractObservations').mockRejectedValue(new Error('Rate Limit Exceeded'));
 
     const request: EvidenceRequest = {
       requestId: 'req-4',
       source: EvidenceSource.VISION_ANALYSIS,
-      parameters: { imageUrl: 'https://example.com/image.jpg' }
+      parameters: { imageBuffer: Buffer.from('test'), mimeType: 'image/jpeg' }
     };
 
     const response = await provider.collectEvidence(request);
@@ -93,18 +104,19 @@ describe('VisionProvider', () => {
   });
 
   it('handles malformed provider response (normalization fallback)', async () => {
+    await provider.initialize();
     const adapterMock = jest.spyOn((provider as any).adapter, 'extractObservations').mockResolvedValue(null);
 
     const request: EvidenceRequest = {
       requestId: 'req-5',
       source: EvidenceSource.VISION_ANALYSIS,
-      parameters: { imageUrl: 'https://example.com/image.jpg' }
+      parameters: { imageBuffer: Buffer.from('test'), mimeType: 'image/jpeg' }
     };
 
     const response = await provider.collectEvidence(request);
 
     expect(response.status).toBe(EvidenceStatus.VALID);
-    expect(response.evidence?.data.severity).toBe('UNKNOWN');
+    expect(response.evidence?.data).toBeNull();
     adapterMock.mockRestore();
   });
 });

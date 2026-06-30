@@ -1,454 +1,439 @@
 # TEST_PLAN.md
 
-# Milestone 5 — Phase 5A
+# Milestone 5 — Phase 5C
 
-## Test Strategy & Validation Plan
+## Runtime Verification & Testing Specification
 
 ---
 
 # Purpose
 
-This document defines the mandatory testing strategy for **Milestone 5 – Phase 5A**.
+This document defines the mandatory testing requirements for Milestone 5 – Phase 5C.
 
-Its objective is to verify that the Gemini Vision integration functions correctly while preserving the architecture validated during Milestones 1–4.
+The objective is to verify that the AI Runtime correctly integrates the Persistence Layer (Cloud Storage, Firestore, Tracking ID) while preserving the architecture established during previous milestones.
 
-Testing shall validate:
+Testing must validate correctness, resilience, reliability, atomic persistence, and runtime stability.
 
-* Functional correctness
-* Runtime stability
-* Error handling
-* Integration quality
-* Architectural compliance
+Manual UI verification alone is insufficient.
 
-Implementation is **not considered complete** until all mandatory test cases pass.
+---
+
+# Testing Objectives
+
+The implementation shall verify:
+
+- Production Google Maps integration
+- Evidence Provider behaviour
+- Evidence aggregation
+- Runtime orchestration
+- AI decision quality
+- Confidence evaluation
+- Municipality report generation
+- Tracking ID Generation
+- Cloud Storage file upload
+- Firestore document creation
+- Atomic Persistence and Rollbacks
+- Failure handling
+- API contract compliance
 
 ---
 
 # Testing Philosophy
 
-Testing follows a layered approach.
+Testing shall follow multiple levels.
 
-```text
+```
 Unit Tests
-      ↓
+        ↓
 Integration Tests
-      ↓
+        ↓
 Runtime Tests
-      ↓
+        ↓
+Persistence Tests
+        ↓
 End-to-End Tests
-      ↓
-Acceptance Validation
+        ↓
+Failure Tests
 ```
 
-Each layer validates a different aspect of the system.
+Every runtime component must be independently verifiable.
 
 ---
 
-# Test Categories
+# Test Environment
 
-Phase 5A includes:
+Automated testing shall adhere strictly to the following environment rules:
 
-* Unit Testing
-* Integration Testing
-* Runtime Testing
-* End-to-End Testing
-* Failure Testing
-* Performance Validation
-* Acceptance Testing
+- **Persistence Tests**: SHALL use the Firebase Local Emulator Suite.
+- **Integration Tests**: MAY use a dedicated non-production Firebase project.
+- **Production Firebase**: SHALL NEVER be used for automated testing.
 
 ---
 
 # Unit Tests
 
-## Gemini Vision Provider
+## GoogleMapsProvider
 
 Verify:
 
-* Gemini client initialization
-* Prompt generation
-* Image submission
-* Response parsing
-* JSON validation
-* Schema validation
-
-Expected Result
-
-All provider functions execute successfully.
+- coordinate validation
+- reverse geocoding
+- municipality lookup
+- nearby place discovery
+- response normalization
+- timeout handling
+- retry behaviour
+- schema validation
 
 ---
 
-## VisionResult Validation
+## Evidence Aggregator
 
 Verify:
 
-* Required fields
-* Enum validation
-* String validation
-* Array validation
-* Unknown value handling
-
-Expected Result
-
-Only valid VisionResult objects are accepted.
+- successful aggregation
+- provider ordering
+- partial evidence handling
+- metadata generation
+- evidencePackage validation
 
 ---
 
-## Upload Validation
+## Decision Engine & Confidence Engine
 
 Verify:
 
-* Supported formats
-* Missing image
-* Invalid extension
-* Oversized upload
-* Empty request
+- VisionResult & evidencePackage consumption
+- reasoning generation and priority assignment
+- evidence-aware confidence scoring
+- partial evidence confidence reduction
+- escalation logic
 
-Expected Result
+---
 
-Invalid uploads are rejected before runtime execution.
+## Tracking ID Generator
+
+Verify:
+
+- valid Tracking ID generation
+- uniqueness
+- non-enumerability
+- URL-safe formatting
+- duplicate prevention
+
+---
+
+## Cloud Storage Provider
+
+Verify:
+
+- successful upload to private bucket
+- unsupported file rejection
+- oversized file rejection (strictly enforces 10 MB limit)
+- timeout handling
+- permission failures
+- metadata persistence
+- canonical storage path generation
+
+---
+
+## Firestore Provider
+
+Verify:
+
+- successful document creation
+- document size within 1 MB limit
+- invalid payload rejection
+- timeout handling
+- permission failures
+- retry behaviour (where applicable)
+- metadata persistence
+- Tracking ID and canonical storage path association
+
+---
+
+## Persistence Coordinator
+
+Verify:
+
+- orchestration sequence
+- correct component calling (ID -> Storage -> Firestore)
+- atomic persistence success
+- rollback verification on failure (e.g. storage succeeds, firestore fails -> storage deleted)
 
 ---
 
 # Integration Tests
 
-## Upload → Gemini
+Verify:
 
-Scenario
-
-Upload a valid municipal image.
-
-Expected
-
-Gemini receives the request and returns a valid VisionResult.
-
----
-
-## Gemini → Runtime
-
-Scenario
-
-Gemini returns a valid response.
-
-Expected
-
-Decision Engine receives a valid VisionResult.
-
----
-
-## Runtime Pipeline
-
-Scenario
-
-Complete runtime execution.
-
-Expected Flow
-
-```text
-Upload
-   ↓
-Gemini
-   ↓
-VisionResult
-   ↓
+```
+Gemini Vision
+↓
+Google Maps
+↓
+Evidence Aggregator
+↓
 Decision Engine
-   ↓
-Evidence Layer
-   ↓
+↓
 Confidence Engine
-   ↓
-Municipality Report
+↓
+Persistence Coordinator (Tracking ID -> Cloud Storage -> Firestore)
 ```
 
-Expected Result
+Tests:
 
-Pipeline completes successfully.
+- valid runtime execution
+- municipality enrichment
+- evidencePackage creation
+- report generation
+- report successfully persisted with file URL
 
 ---
 
-# Runtime Tests
+# API Tests
 
 Verify:
 
-* Runtime Coordinator remains stable.
-* Decision Engine executes correctly.
-* Evidence Layer receives VisionResult.
-* Confidence Engine calculates results.
-* Municipality report is generated.
+## Valid Request
 
-No architectural boundaries may be violated.
+Expected:
+
+HTTP 200 (including Tracking ID and Storage Object Path)
 
 ---
 
-# End-to-End Tests
+## Invalid Request (Validation Failures)
 
-## Test 1
+Verify missing image, invalid coordinates, unsupported file, oversized upload.
 
-Input
+Expected:
 
-Road pothole image
-
-Expected
-
-* Issue detected
-* Severity assigned
-* Report generated
-
-Status
-
-Mandatory
+HTTP 400, HTTP 413, HTTP 415
 
 ---
 
-## Test 2
+## Municipality Not Found
 
-Input
+Expected:
 
-Garbage accumulation image
-
-Expected
-
-* Correct classification
-* Municipality report generated
-
-Status
-
-Mandatory
+HTTP 200 (evidencePackage.overallStatus = PARTIAL)
+Runtime continues using available evidence. Do NOT return HTTP 404.
 
 ---
 
-## Test 3
+## Maps Provider Failure
 
-Input
+Expected:
 
-Broken streetlight
-
-Expected
-
-* Infrastructure identified
-* High confidence output
-
-Status
-
-Mandatory
+HTTP 200 (evidencePackage.overallStatus = PARTIAL)
+Runtime continues using available evidence.
 
 ---
 
-## Test 4
+## Persistence Failures (Upload Failures, Firestore Failures, Permission Failures)
 
-Input
+Expected:
 
-Drain overflow
-
-Expected
-
-* Correct issue category
-* Correct priority
-
-Status
-
-Mandatory
+HTTP 500 (with rollback verified and structured persistence error)
 
 ---
 
-## Test 5
+# End-to-End Submission Tests
 
-Input
+Verify complete runtime:
 
-Fallen tree
+```
+Citizen Upload
+        ↓
+Gemini Vision
+        ↓
+VisionResult
+        ↓
+Evidence Coordinator
+        ↓
+Google Maps Provider
+        ↓
+Evidence Aggregator
+        ↓
+evidencePackage
+        ↓
+Decision Engine
+        ↓
+Confidence Engine
+        ↓
+Municipality Report
+        ↓
+Persistence Coordinator
+        ↓
+Tracking ID Generator
+        ↓
+Cloud Storage Provider
+        ↓
+Firestore Provider
+        ↓
+Submission Response
+```
 
-Expected
+The runtime shall complete successfully.
 
-* Hazard detected
-* Municipality report generated
+---
 
-Status
+# Partial Evidence Tests
 
-Mandatory
+Simulate:
+
+Google Maps unavailable
+
+Expected:
+
+Runtime continues, partial evidence generated (evidencePackage.overallStatus = PARTIAL), report persists successfully to Cloud Storage and Firestore.
 
 ---
 
 # Failure Tests
 
-## Invalid File Type
+Simulate:
 
-Expected
+## Gemini timeout
 
-415 Unsupported Media Type
+Expected: Runtime terminates.
 
----
+## Reverse Geocode / Places API timeout
 
-## Missing Image
+Expected: Partial evidence, persistence continues.
 
-Expected
+## Upload Failures
 
-400 Bad Request
+Expected: Cloud Storage failure triggers atomic abort. Firestore is not written. HTTP 500 returned.
 
----
+## Firestore Failures (Network, Permissions)
 
-## Oversized File
+Expected: Cloud Storage upload succeeds but Firestore fails. Persistence Coordinator executes rollback to delete orphaned Cloud Storage upload. HTTP 500 returned.
 
-Expected
+## Rollback Failures
 
-413 Payload Too Large
-
----
-
-## Gemini Timeout
-
-Expected
-
-Automatic retry once.
-
-If retry fails:
-
-504 Gateway Timeout
+Expected: `PERSISTENCE_ROLLBACK_FAILED` returned. Logged for manual remediation.
 
 ---
 
-## Gemini Service Unavailable
+# Retry Bounds Verification
 
-Expected
-
-503 Service Unavailable
-
----
-
-## Invalid Gemini JSON
-
-Expected
-
-Response rejected.
-
-Runtime not executed.
-
----
-
-## Schema Validation Failure
-
-Expected
-
-Runtime terminated safely.
-
-Structured error returned.
-
----
-
-## Safety Refusal
-
-Expected
-
-Structured CONTENT_NOT_SUPPORTED error.
+Verify that retry logic for transient failures respects the following limits:
+- maximum retry count: 3
+- exponential backoff: enabled
+- randomized jitter: enabled
+- maximum retry duration: 5000ms
 
 ---
 
 # Performance Tests
 
+Verify the following latency budgets:
+
+Tracking ID generation latency
+
+< 50ms
+
+Cloud Storage upload latency
+
+< 2s
+
+Firestore write latency
+
+< 1s
+
+Total Persistence Layer latency
+
+< 3s
+
+Overall Runtime
+
+< 30s
+
+**Concurrency Verification**:
+Testing shall verify that runtime latency reflects parallel execution rather than sequential execution where applicable.
+
+---
+
+# Security Tests
+
 Verify:
 
-* Upload validation executes immediately.
-* Runtime remains responsive.
-* No excessive memory usage.
-* Response time remains acceptable.
-* No blocking operations.
-
-Target
-
-Average response time:
-
-Less than 10 seconds.
-
-Maximum acceptable response time:
-
-30 seconds.
-
-These targets apply under normal network conditions and standard image sizes.
-
-Performance may vary depending on external API latency.
+- invalid MIME types rejected
+- oversized uploads rejected
+- coordinates validated
+- provider responses sanitized
+- API keys never exposed
+- Firebase server credentials never exposed
+- stack traces never returned
+- Database internal identifiers not leaked
+- Uploads execute securely on the backend
+- Cloud Storage bucket is private by default
 
 ---
 
-# Acceptance Tests
+# Schema Validation Tests
 
-Phase 5A is accepted only if all of the following pass.
+Verify:
 
-| Requirement                    | Status    |
-| ------------------------------ | --------- |
-| Image Upload                   | Mandatory |
-| Gemini Integration             | Mandatory |
-| VisionResult Validation        | Mandatory |
-| Runtime Integration            | Mandatory |
-| Decision Engine Execution      | Mandatory |
-| Confidence Engine Execution    | Mandatory |
-| Municipality Report Generation | Mandatory |
-| Structured Error Handling      | Mandatory |
-| Logging                        | Mandatory |
-| API Contract Compliance        | Mandatory |
+VisionResult conforms to `VISION_RESULT_SCHEMA.md`
+evidencePackage conforms to `EVIDENCE_SCHEMA.md`
+API responses conform to `API_CONTRACT.md`
 
 ---
 
-# Test Data
+# Regression Tests
 
-The following representative images should be used.
+Verify that existing functionality remains unchanged.
 
-* Pothole
-* Garbage
-* Broken Streetlight
-* Drain Overflow
-* Fallen Tree
+Specifically:
 
-Additional cases:
+- upload workflow
+- Gemini Vision integration
+- Decision Engine
+- Confidence Engine
+- Municipality Report generation
+- Demo UI behaviour
 
-* Blurry image
-* Low-light image
-* Empty road
-* Invalid image
-* Corrupted file
+Phase 5C shall not introduce regressions into Phase 5A or Phase 5B. Existing tests must remain valid.
 
 ---
 
-# Evidence Required
+# Acceptance Criteria
 
-Capture screenshots demonstrating:
+Testing is complete only when:
 
-* Upload UI
-* Successful image upload
-* Gemini analysis
-* VisionResult generation
-* Runtime execution
-* Confidence score
-* Municipality report
-* Error handling
-* Successful completion
-
-These artifacts become part of the implementation review package.
+- All unit tests pass.
+- All integration tests pass.
+- All end-to-end submission tests pass.
+- All API tests pass.
+- All failure tests pass (including atomic rollback verification).
+- All schema validation tests pass.
+- No regressions are detected.
+- Build succeeds.
+- TypeScript compilation succeeds.
 
 ---
 
-# Exit Criteria
+# Deliverables
 
-Phase 5A shall not proceed to review until:
+Implementation shall provide:
 
-* All mandatory tests pass.
-* No critical defects remain.
-* Runtime architecture remains unchanged.
-* API contract is satisfied.
-* VisionResult schema is fully validated.
-* Evidence has been captured.
-* Documentation is updated.
+- Automated test suite (utilizing Firebase Local Emulator)
+- Test execution summary
+- Coverage report
+- Runtime verification evidence
+- Failure test evidence
+- Performance measurements
 
 ---
 
-# Success Criteria
+# Definition of Success
 
-Testing is considered successful when:
+Phase 5C testing is successful when the AI Runtime can reliably combine visual perception and contextual evidence to produce deterministic municipal decisions, and permanently, atomically store those decisions without regressions.
 
-* Every mandatory test passes.
-* The runtime executes without architectural violations.
-* Gemini integrates successfully.
-* Invalid inputs are handled correctly.
-* Failure scenarios are recovered gracefully.
-* Users receive deterministic and consistent results.
-* The implementation is ready for independent technical review.
+The implementation shall demonstrate production-quality behaviour while preserving the modular runtime architecture established throughout the project.
 
 ---
 
@@ -456,10 +441,10 @@ Testing is considered successful when:
 
 Test Plan Version
 
-v1.0
+v3.1
 
 Target Milestone
 
-Milestone 5 — Phase 5A
+Milestone 5 — Phase 5C
 
-This document is the authoritative testing specification for Phase 5A and defines the minimum validation required before implementation approval.
+This document is the authoritative testing specification for Milestone 5 – Phase 5C.

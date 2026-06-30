@@ -23,6 +23,7 @@ export class FailureManager {
         });
         resolve({
           requestId,
+          source: providerName as any,
           status: EvidenceStatus.ERROR,
           evidence: null,
           errors: [`Provider ${providerName} timed out after ${timeoutMs}ms`]
@@ -44,6 +45,7 @@ export class FailureManager {
           });
           resolve({
             requestId,
+            source: providerName as any,
             status: EvidenceStatus.ERROR,
             evidence: null,
             errors: [`Provider ${providerName} threw unhandled exception: ${error.message || String(error)}`]

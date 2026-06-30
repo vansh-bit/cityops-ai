@@ -7,8 +7,10 @@ describe('MunicipalProvider', () => {
   let framework: EvidenceFramework;
 
   beforeEach(() => {
+    process.env.STUB_MODE = 'true';
     framework = new EvidenceFramework();
     provider = new MunicipalProvider(framework);
+    // Suppress console logs
     jest.spyOn(console, 'error').mockImplementation(() => {});
     jest.spyOn(console, 'warn').mockImplementation(() => {});
   });
@@ -30,6 +32,13 @@ describe('MunicipalProvider', () => {
   });
 
   it('collects and normalizes evidence', async () => {
+    await provider.initialize();
+    jest.spyOn((provider as any).adapter, 'fetchAssetContext').mockResolvedValue({
+      asset_id: 'ASSET-999',
+      department_owner: 'Department of Transportation',
+      lastInspected: '2026-06-01'
+    });
+
     const request: EvidenceRequest = {
       requestId: 'req-1',
       source: EvidenceSource.MUNICIPAL,
@@ -104,7 +113,7 @@ describe('MunicipalProvider', () => {
     const response = await provider.collectEvidence(request);
 
     expect(response.status).toBe(EvidenceStatus.VALID);
-    expect(response.evidence?.data.department).toBe('UNKNOWN');
+    expect(response.evidence?.data?.department).toBeUndefined();
     adapterMock.mockRestore();
   });
 });

@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, Schema, Type } from '@google/generative-ai';
+import { GoogleGenerativeAI, Schema, SchemaType, FinishReason } from '@google/generative-ai';
 import logger from '../../utils/logger';
 
 export class GeminiVisionAdapter {
@@ -47,45 +47,45 @@ export class GeminiVisionAdapter {
     }
 
     const schema: Schema = {
-      type: Type.OBJECT,
+      type: SchemaType.OBJECT,
       properties: {
         issueType: {
-          type: Type.STRING,
+          type: SchemaType.STRING,
           description: "Detected issue type, e.g. POTHOLE, GARBAGE, BROKEN_STREETLIGHT, DRAIN_OVERFLOW, FALLEN_TREE, ROAD_DAMAGE, WATER_LEAK, GRAFFITI, TRAFFIC_SIGNAL, UNKNOWN",
         },
         severity: {
-          type: Type.STRING,
+          type: SchemaType.STRING,
           description: "Severity level, e.g. LOW, MEDIUM, HIGH, CRITICAL, UNKNOWN",
         },
         description: {
-          type: Type.STRING,
+          type: SchemaType.STRING,
           description: "Human-readable description of the visible issue (max 500 characters)",
         },
         observations: {
-          type: Type.ARRAY,
-          items: { type: Type.STRING },
+          type: SchemaType.ARRAY,
+          items: { type: SchemaType.STRING },
           description: "List of visible observations",
         },
         potentialHazards: {
-          type: Type.ARRAY,
-          items: { type: Type.STRING },
+          type: SchemaType.ARRAY,
+          items: { type: SchemaType.STRING },
           description: "Possible risks inferred from visible evidence",
         },
         infrastructure: {
-          type: Type.STRING,
+          type: SchemaType.STRING,
           description: "Primary infrastructure affected, e.g. ROAD, FOOTPATH, DRAIN, STREETLIGHT, TRAFFIC_SIGNAL, PARK, PUBLIC_PROPERTY, UNKNOWN",
         },
         inspectionPriority: {
-          type: Type.STRING,
+          type: SchemaType.STRING,
           description: "Suggested inspection urgency, e.g. LOW, MEDIUM, HIGH, CRITICAL, UNKNOWN",
         },
         reasoningSummary: {
-          type: Type.STRING,
+          type: SchemaType.STRING,
           description: "Short explanation describing why the issue was classified (max 300 characters)",
         },
         limitations: {
-          type: Type.ARRAY,
-          items: { type: Type.STRING },
+          type: SchemaType.ARRAY,
+          items: { type: SchemaType.STRING },
           description: "Known uncertainties, e.g. poor lighting, blurry image",
         }
       },
@@ -145,18 +145,45 @@ Return valid JSON matching the VisionResult schema.`;
     const maxRetries = 1;
     
     while (retries <= maxRetries) {
+      const abortController = new AbortController();
+      const timeoutId = setTimeout(() => {
+        abortController.abort(new Error('TIMEOUT: Gemini request exceeded 30 seconds'));
+      }, 30000);
+
       try {
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('TIMEOUT: Gemini request exceeded 30 seconds')), 30000)
-        );
+        const result = await model.generateContent({
+          contents: [{ role: 'user', parts: [{ text: prompt }, imagePart] }]
+        }, {
+          signal: abortController.signal
+        });
 
-        const generatePromise = model.generateContent([prompt, imagePart]);
-        const result = await Promise.race([generatePromise, timeoutPromise]) as any;
+        clearTimeout(timeoutId);
 
-        const responseText = result.response.text();
+        const response = result.response;
+        
+        // Safety handling (Priority 3)
+        const candidate = response.candidates?.[0];
+        if (candidate?.finishReason === FinishReason.SAFETY) {
+          const safetyError = new Error('CONTENT_NOT_SUPPORTED: Safety filter blocked the response');
+          safetyError.name = 'SafetyError';
+          throw safetyError;
+        }
+
+        const responseText = response.text();
+        logger.info('Gemini Vision raw response received', {
+          model: 'gemini-2.5-flash',
+          responseText,
+        });
         return JSON.parse(responseText);
       } catch (error: any) {
-        if (error.message.includes('TIMEOUT') || error.message.includes('503') || error.message.includes('network')) {
+        clearTimeout(timeoutId);
+        
+        if (error.name === 'SafetyError' || error.message.includes('CONTENT_NOT_SUPPORTED')) {
+          logger.error('Gemini API safety refusal', { error: error.message });
+          throw error;
+        }
+        
+        if (error.name === 'AbortError' || error.message.includes('TIMEOUT') || error.message.includes('503') || error.message.includes('network')) {
           retries++;
           logger.warn(`Gemini API transient error, retry ${retries}/${maxRetries}`, { error: error.message });
           if (retries > maxRetries) {

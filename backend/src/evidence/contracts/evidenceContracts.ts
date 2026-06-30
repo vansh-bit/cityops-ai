@@ -43,6 +43,7 @@ export interface EvidenceRequest {
 
 export interface EvidenceResponse {
   requestId: string;
+  source: EvidenceSource;
   evidence: Evidence | null;
   status: EvidenceStatus;
   errors?: string[];

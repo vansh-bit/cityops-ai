@@ -28,7 +28,7 @@ import { IterationCoordinator } from '../runtime/IterationCoordinator';
 import { EvidenceToolAdapter } from '../../evidence/orchestration/runtime/EvidenceToolAdapter';
 import { EvidenceCoordinator } from '../../evidence/orchestration/coordinator/EvidenceCoordinator';
 import { EvidenceFramework } from '../../evidence/framework/EvidenceFramework';
-import { MapsProvider } from '../../evidence/providers/maps/MapsProvider';
+import { GoogleMapsProvider } from '../../evidence/providers/maps/GoogleMapsProvider';
 import { VisionProvider } from '../../evidence/providers/vision/VisionProvider';
 import { MunicipalProvider } from '../../evidence/providers/municipal/MunicipalProvider';
 
@@ -58,13 +58,13 @@ export class RuntimeFactory {
 
     // Providers
     const framework = new EvidenceFramework();
-    const mapsProvider = new MapsProvider(framework);
+    const googleMapsProvider = new GoogleMapsProvider();
     const visionProvider = new VisionProvider(framework);
     const municipalProvider = new MunicipalProvider(framework);
     
     // Evidence Orchestration
     const evidenceCoordinator = new EvidenceCoordinator([
-      mapsProvider,
+      googleMapsProvider,
       visionProvider,
       municipalProvider
     ]);

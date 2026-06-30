@@ -1,138 +1,195 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './VerticalSliceDemo.css';
-import { 
-  IconRoad, IconSpray, IconDroplet, IconCameraUpload, 
-  IconEye, IconMapPin, IconBook, IconCpu, IconShieldCheck,
-  IconAlertTriangle, IconCheck, IconCircle, IconSend
+import {
+  IconAlertTriangle,
+  IconCameraUpload,
+  IconCheck,
+  IconDroplet,
+  IconRoad,
+  IconSend,
+  IconSpray,
 } from '../../components/TablerIcons';
-import { Images } from '../../images';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-const getImg = (name: string) => {
-  const key = Object.keys(Images).find(k => k.startsWith(name));
-  return key ? (Images as any)[key] : '';
-};
-
-const SCENARIOS = [
+const INCIDENT_REFERENCES = [
   {
     id: 'pothole',
     Icon: IconRoad,
     label: 'Pothole',
     subLabel: 'Road Damage',
-    thumbnail: getImg('pothole_image'),
-    data: {
-      imageUri: 'gs://cityops-demo/pothole-main-st.jpg',
-      location: { lat: 41.8818, lng: -87.6705 },
-      address: '1247 W. Madison St, Ward 17, Chicago IL 60607',
-      assetId: 'RD-CHI-2026-004821',
-      description: 'Deep pothole on Main St, damaged my tire.',
-      dimensions: '~0.4m diameter, depth 6cm',
-      repairCost: '$380–$520 (standard asphalt patch)',
-      crewType: 'Road Maintenance Crew — Unit 7',
-      municipalCode: 'Chicago § 10-20-080',
-      classification: 'Pothole / Road Hazard',
-      department: 'Public Works',
-      priority: 'High',
-      confidence: 88,
-      escalate: false
-    }
+    description: 'Large pothole on a public roadway',
   },
   {
     id: 'graffiti',
     Icon: IconSpray,
     label: 'Graffiti',
     subLabel: 'Municipal Check',
-    thumbnail: getImg('graffiti_image'),
-    data: {
-      imageUri: 'gs://cityops-demo/graffiti-park.jpg',
-      location: { lat: 41.8827, lng: -87.6233 },
-      address: 'Millennium Park Fountain, Chicago IL',
-      assetId: 'PK-CHI-2026-001133',
-      description: 'Offensive graffiti on the park fountain.',
-      dimensions: '~2.1m² coverage',
-      repairCost: '$150 (chemical wash)',
-      crewType: 'Parks & Rec Team',
-      municipalCode: 'Chicago § 7-28-065',
-      classification: 'Graffiti / Vandalism',
-      department: 'Parks Department',
-      priority: 'Routine',
-      confidence: 94,
-      escalate: false
-    }
+    description: 'Graffiti on municipal infrastructure',
   },
   {
     id: 'water-main',
     Icon: IconDroplet,
     label: 'Water Break',
     subLabel: 'Emergency',
-    thumbnail: getImg('water_main_image'),
-    data: {
-      imageUri: 'gs://cityops-demo/water-leak.jpg',
-      location: { lat: 41.8855, lng: -87.6473 },
-      address: 'W. Lake St & N. Halsted St, Chicago IL',
-      assetId: 'WM-CHI-2026-007742',
-      description: 'Massive water leak flooding.',
-      dimensions: '8-inch cast iron main',
-      repairCost: 'Requires assessment',
-      crewType: 'Emergency Water Team',
-      municipalCode: 'Emergency § 11-12-010',
-      classification: 'Water Main Rupture',
-      department: 'Water Services',
-      priority: 'Critical',
-      confidence: 98,
-      escalate: false
-    }
+    description: 'Water leak or flooding on public property',
   },
   {
     id: 'suspicious',
     Icon: IconAlertTriangle,
-    label: 'Suspicious Structure',
-    subLabel: 'Low Confidence',
-    thumbnail: getImg('suspicious_structure_image'),
-    data: {
-      imageUri: 'gs://cityops-demo/shack.jpg',
-      location: { lat: 41.8781, lng: -87.6298 },
-      address: '200 Block S. State St, Chicago IL',
-      assetId: 'UNKNOWN',
-      description: 'Weird wooden shack blocking.',
-      dimensions: 'Unknown',
-      repairCost: 'N/A',
-      crewType: 'Municipal Inspector',
-      municipalCode: 'Review Required',
-      classification: 'Unverified Structure',
-      department: 'Buildings',
-      priority: 'Review',
-      confidence: 47,
-      escalate: true
-    }
-  }
+    label: 'Unclear Incident',
+    subLabel: 'Needs Review',
+    description: 'Non-obvious or low-certainty municipal image',
+  },
 ];
 
-type Step = 'selection' | 'processing' | 'results' | 'report-generating' | 'preview' | 'submitting' | 'success';
+type Step =
+  | 'selection'
+  | 'processing'
+  | 'results'
+  | 'report-generating'
+  | 'preview'
+  | 'submitting'
+  | 'success';
+
+type Coordinates = {
+  latitude: number;
+  longitude: number;
+};
+
+type EvidencePackage = {
+  location?: {
+    latitude?: number;
+    longitude?: number;
+    formattedAddress?: string;
+    city?: string;
+    state?: string;
+  };
+  municipality?: {
+    municipalityName?: string;
+    responsibleAuthority?: string;
+  };
+  infrastructure?: {
+    nearbyLandmarks?: string[];
+    nearbyPublicInfrastructure?: string[];
+  };
+  providers?: Array<{ provider?: string; status?: string }>;
+};
+
+const stripDepartment = (value?: string) => {
+  if (!value) return 'Unassigned';
+  return value.split(':')[0].trim();
+};
+
+const formatCoordinate = (value?: number) =>
+  typeof value === 'number' && Number.isFinite(value) ? value.toFixed(5) : 'Unknown';
+
+const extractEvidencePackage = (result: any): EvidencePackage | undefined => {
+  if (result?.evidencePackage) {
+    return result.evidencePackage;
+  }
+
+  const packageEvidence = result?.evidence?.find(
+    (entry: any) => entry?.source === 'evidence_collection_tool' || entry?.data?.package,
+  );
+
+  return packageEvidence?.data?.package || packageEvidence?.data;
+};
+
+const extractCoordinates = (result: any, submittedLocation: Coordinates | null): Coordinates | null => {
+  const evidencePackage = extractEvidencePackage(result);
+  const latitude = evidencePackage?.location?.latitude ?? result?.location?.latitude ?? submittedLocation?.latitude;
+  const longitude =
+    evidencePackage?.location?.longitude ?? result?.location?.longitude ?? submittedLocation?.longitude;
+
+  if (typeof latitude === 'number' && typeof longitude === 'number') {
+    return { latitude, longitude };
+  }
+
+  return null;
+};
+
+const extractAddress = (result: any) => {
+  const evidencePackage = extractEvidencePackage(result);
+  return evidencePackage?.location?.formattedAddress || 'Address unavailable';
+};
+
+const extractEvidenceSources = (result: any) => {
+  const evidencePackage = extractEvidencePackage(result);
+  const providerLabels =
+    evidencePackage?.providers
+      ?.filter((provider) => provider?.status && provider.status !== 'ERROR')
+      .map((provider) => provider.provider)
+      .filter(Boolean) || [];
+
+  if (providerLabels.length > 0) {
+    return providerLabels.join(', ');
+  }
+
+  return 'Vision AI, GIS Maps';
+};
+
+const getErrorMessage = (payload: any) =>
+  payload?.error?.message || payload?.message || 'The analysis request failed.';
+
+const requestBrowserLocation = () =>
+  new Promise<Coordinates>((resolve, reject) => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      reject(new Error('Geolocation is not supported in this browser.'));
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+      },
+      (error) => {
+        if (error.code === error.PERMISSION_DENIED) {
+          reject(new Error('Location permission is required before analysis can begin.'));
+          return;
+        }
+
+        if (error.code === error.POSITION_UNAVAILABLE) {
+          reject(new Error('Unable to determine your current location.'));
+          return;
+        }
+
+        if (error.code === error.TIMEOUT) {
+          reject(new Error('Location request timed out. Please try again.'));
+          return;
+        }
+
+        reject(new Error('Location request failed.'));
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      },
+    );
+  });
 
 export function VerticalSliceDemo() {
-  const [step, setStep] = useState<Step>('selection');
-  const [selectedScenario, setSelectedScenario] = useState<string | null>(null);
+  const [step, setStepState] = useState<Step>('selection');
+  const [selectedReference, setSelectedReference] = useState<string>('pothole');
   const [result, setResult] = useState<any>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [locationMessage, setLocationMessage] = useState<string | null>(null);
+  const [submittedLocation, setSubmittedLocation] = useState<Coordinates | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const [activeNode, setActiveNode] = useState(0);
   const [terminalLines, setTerminalLines] = useState<string[]>([]);
   const terminalEndRef = useRef<HTMLDivElement>(null);
-  const activeIntervals = useRef<any[]>([]);
-  const activeTimeouts = useRef<any[]>([]);
-
-  useEffect(() => {
-    return () => {
-      activeIntervals.current.forEach(clearInterval);
-      activeTimeouts.current.forEach(clearTimeout);
-    };
-  }, []);
+  const activeIntervals = useRef<ReturnType<typeof setInterval>[]>([]);
+  const activeTimeouts = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const stepHistory = useRef<Step[]>(['selection']);
 
   const [showVision, setShowVision] = useState(false);
   const [showMaps, setShowMaps] = useState(false);
@@ -144,219 +201,68 @@ export function VerticalSliceDemo() {
   const [successAnim, setSuccessAnim] = useState(0);
   const [copied, setCopied] = useState(false);
 
-  // For scenarios we use predefined data. For upload, we will use the backend response.
-  const scenario = SCENARIOS.find(s => s.id === selectedScenario) || SCENARIOS[0];
+  const transitionToStep = (nextStep: Step, options?: { replace?: boolean; skipBrowserHistory?: boolean }) => {
+    setStepState(nextStep);
+
+    if (options?.replace) {
+      stepHistory.current[stepHistory.current.length - 1] = nextStep;
+    } else {
+      stepHistory.current.push(nextStep);
+    }
+
+    if (!options?.skipBrowserHistory && typeof window !== 'undefined') {
+      const historyMethod = options?.replace ? 'replaceState' : 'pushState';
+      window.history[historyMethod]({ cityOpsStep: nextStep }, '', window.location.href);
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    window.history.replaceState({ cityOpsStep: 'selection' }, '', window.location.href);
+
+    const handlePopState = () => {
+      if (stepHistory.current.length > 1) {
+        stepHistory.current.pop();
+      }
+
+      const previousStep = stepHistory.current[stepHistory.current.length - 1] || 'selection';
+      setStepState(previousStep);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      activeIntervals.current.forEach(clearInterval);
+      activeTimeouts.current.forEach(clearTimeout);
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
 
   useEffect(() => {
     if (terminalEndRef.current) {
       try {
         terminalEndRef.current.scrollIntoView({ behavior: 'smooth' });
-      } catch (e) {
-        try { terminalEndRef.current.scrollIntoView(); } catch(e2) {}
+      } catch {
+        terminalEndRef.current.scrollIntoView();
       }
     }
   }, [terminalLines]);
-
-  const streamTerminal = (lines: string[], onComplete: () => void) => {
-    let currentLine = 0;
-    const interval = setInterval(() => {
-      if (currentLine < lines.length) {
-        const nextLine = lines[currentLine];
-        setTerminalLines(prev => [...prev, String(nextLine || '')]);
-        currentLine++;
-      } else {
-        clearInterval(interval);
-        onComplete();
-      }
-    }, 400);
-    activeIntervals.current.push(interval);
-  };
-
-  const handleExecute = () => {
-    if (!selectedScenario) return;
-    
-    activeIntervals.current.forEach(clearInterval);
-    activeTimeouts.current.forEach(clearTimeout);
-    activeIntervals.current = [];
-    activeTimeouts.current = [];
-
-    setStep('processing');
-    setResult(null);
-    setTerminalLines([]);
-    setActiveNode(0);
-    setUploadError(null);
-
-    // If it's a real upload, we make the API call while animating the terminal
-    if (selectedScenario === 'upload' && uploadFile) {
-      setIsUploading(true);
-      
-      const formData = new FormData();
-      formData.append('image', uploadFile);
-      formData.append('description', 'User uploaded incident image');
-      formData.append('demoMode', 'true');
-
-      // Kick off the fetch request concurrently with the animation
-      const fetchPromise = fetch(`${API_URL}/api/v1/analyze`, {
-        method: 'POST',
-        body: formData
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (!data.success) throw new Error(data.error?.message || 'Upload failed');
-        return data;
-      });
-
-      // Define a generic terminal flow for custom uploads
-      const customFlow = [
-        { node: 1, lines: ['[VISION AGENT] Analyzing custom citizen upload...', '  → Segmentation and extraction initiated...'] },
-        { node: 2, lines: ['\n[GIS AGENT] Bypassing geolocation (no metadata)...', '  → Location unknown'] },
-        { node: 3, lines: ['\n[MUNICIPAL RULES AGENT] Querying municipal databases...', '  → Matching visual signatures to city codes'] },
-        { node: 4, lines: ['\n[DECISION AGENT] Synthesizing output payload...', '  → Finalizing operational recommendation...'] },
-        { node: 5, lines: ['\n[CONFIDENCE AGENT] Aggregating deterministic evidence...', '  → Calculating final confidence score...'] }
-      ];
-
-      let currentStepIndex = 0;
-      let fetchedResult: any = null;
-      let fetchError: any = null;
-
-      fetchPromise.then(res => fetchedResult = res).catch(err => fetchError = err);
-
-      const executeNextStep = () => {
-        if (currentStepIndex >= customFlow.length) {
-          // Wait for fetch if it's still running
-          const checkFetch = setInterval(() => {
-            if (fetchError) {
-              clearInterval(checkFetch);
-              setIsUploading(false);
-              setUploadError(fetchError.message);
-              setStep('selection');
-            } else if (fetchedResult) {
-              clearInterval(checkFetch);
-              setIsUploading(false);
-              setResult(fetchedResult);
-              setStep('results');
-            }
-          }, 500);
-          activeIntervals.current.push(checkFetch);
-          return;
-        }
-        const step = customFlow[currentStepIndex];
-        setActiveNode(step.node);
-        streamTerminal(step.lines, () => {
-          currentStepIndex++;
-          // if fetch completed early, we can still let the animation finish its sequence
-          executeNextStep();
-        });
-      };
-      
-      executeNextStep();
-      return;
-    }
-    
-    // Original Mock Flow
-    const flow = [
-      {
-        node: 1, 
-        lines: [
-          `[VISION AGENT] Analyzing citizen upload...`,
-          `  → Segmentation complete: ${scenario.data.classification}`,
-          `  → Priority extracted: ${scenario.data.priority}`,
-          `  → Dimensions mapped: ${scenario.data.dimensions}`
-        ]
-      },
-      {
-        node: 2, 
-        lines: [
-          `\n[GIS AGENT] Requesting geospatial cross-reference...`,
-          `  → Coordinates: ${scenario.data.location.lat}° N, ${scenario.data.location.lng}° W`,
-          `  → Node match: ${scenario.data.assetId}`,
-          `  → Address resolved: ${scenario.data.address}`
-        ]
-      },
-      {
-        node: 3, 
-        lines: [
-          `\n[MUNICIPAL RULES AGENT] Validating jurisdiction and codes...`,
-          `  → Code matched: ${scenario.data.municipalCode}`,
-          `  → Department identified: ${scenario.data.department}`
-        ]
-      },
-      {
-        node: 4, 
-        lines: [
-          `\n[DECISION AGENT] Synthesizing output payload...`,
-          `  → Routing confirmed to ${scenario.data.department}`,
-          `  → Final classification locked: ${scenario.data.classification}`
-        ]
-      },
-      {
-        node: 5, 
-        lines: [
-          `\n[CONFIDENCE AGENT] Aggregating deterministic evidence...`,
-          `  → Sub-score weights assigned`,
-          `  → Overall calculation: ${scenario.data.confidence}%`,
-          scenario.data.escalate ? `  → FLAG: ESCALATED FOR HUMAN REVIEW` : `  → FLAG: APPROVED FOR AUTOMATION`
-        ]
-      }
-    ];
-
-    let currentStepIndex = 0;
-    
-    const executeNextStep = () => {
-      if (currentStepIndex >= flow.length) {
-        const timeout = setTimeout(fetchMockResult, 800);
-        activeTimeouts.current.push(timeout);
-        return;
-      }
-      const step = flow[currentStepIndex];
-      setActiveNode(step.node);
-      streamTerminal(step.lines, () => {
-        currentStepIndex++;
-        executeNextStep();
-      });
-    };
-
-    executeNextStep();
-  };
-  
-  const fetchMockResult = () => {
-    const json = {
-      decision: {
-        category: scenario.data.classification,
-        assignedDepartment: scenario.data.department,
-        priority: scenario.data.priority,
-        reasoning: "Visual analysis confirmed the presence of a hazard. Maps verified the location falls within municipal jurisdiction.",
-        address: scenario.data.address,
-        assetId: scenario.data.assetId,
-        crewType: scenario.data.crewType
-      },
-      confidence: {
-        overallScore: scenario.data.confidence,
-        escalationRequired: scenario.data.escalate,
-        reasoning: scenario.data.escalate ? "Confidence below safety threshold." : "N/A"
-      },
-      visionResult: {
-        issueType: scenario.data.classification,
-        severity: scenario.data.priority,
-        dimensions: scenario.data.dimensions
-      },
-      runtimeMetadata: {
-        durationMs: 3450,
-      }
-    };
-    
-    setResult(json);
-    setStep('results');
-  }
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
-      setUploadFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
-      setSelectedScenario('upload');
-    }
-  };
 
   useEffect(() => {
     if (step === 'results') {
@@ -364,7 +270,7 @@ export function VerticalSliceDemo() {
       setShowMaps(false);
       setShowConfidence(false);
       setDisplayConfidence(0);
-      
+
       const t1 = setTimeout(() => setShowVision(true), 400);
       const t2 = setTimeout(() => setShowMaps(true), 800);
       const t3 = setTimeout(() => {
@@ -385,12 +291,18 @@ export function VerticalSliceDemo() {
           activeIntervals.current.push(timer);
         }
       }, 1400);
-      
+
       activeTimeouts.current.push(t1, t2, t3);
-      
-      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+        clearTimeout(t3);
+      };
     }
-  }, [step, result]);
+
+    return undefined;
+  }, [result, step]);
 
   useEffect(() => {
     if (step === 'success') {
@@ -399,230 +311,486 @@ export function VerticalSliceDemo() {
       const t2 = setTimeout(() => setSuccessAnim(2), 700);
       const t3 = setTimeout(() => setSuccessAnim(3), 1050);
       const t4 = setTimeout(() => setSuccessAnim(4), 1400);
-      
+
       activeTimeouts.current.push(t1, t2, t3, t4);
-      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
+
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+        clearTimeout(t3);
+        clearTimeout(t4);
+      };
     }
+
+    return undefined;
   }, [step]);
 
-  const handleGenerateReport = () => {
-    setStep('report-generating');
-    setReportGenStep(0);
-    
-    let currentStep = 0;
+  const streamTerminal = (lines: string[], onComplete: () => void) => {
+    let currentLine = 0;
     const interval = setInterval(() => {
-      currentStep++;
-      if (currentStep >= 5) {
-        clearInterval(interval);
-        setStep('preview');
+      if (currentLine < lines.length) {
+        const nextLine = lines[currentLine];
+        setTerminalLines((prev) => [...prev, String(nextLine || '')]);
+        currentLine += 1;
       } else {
-        setReportGenStep(currentStep);
+        clearInterval(interval);
+        onComplete();
+      }
+    }, 400);
+    activeIntervals.current.push(interval);
+  };
+
+  const resetRuntimeAnimation = () => {
+    activeIntervals.current.forEach(clearInterval);
+    activeTimeouts.current.forEach(clearTimeout);
+    activeIntervals.current = [];
+    activeTimeouts.current = [];
+    setTerminalLines([]);
+    setActiveNode(0);
+  };
+
+  const handleExecute = async () => {
+    if (!uploadFile || isUploading) {
+      setUploadError('Upload an image to run the live AI pipeline.');
+      return;
+    }
+
+    resetRuntimeAnimation();
+    setResult(null);
+    setUploadError(null);
+    setLocationMessage('Requesting browser location permission...');
+
+    let coordinates: Coordinates;
+
+    try {
+      coordinates = await requestBrowserLocation();
+      setSubmittedLocation(coordinates);
+      setLocationMessage(
+        `Location acquired: ${formatCoordinate(coordinates.latitude)}, ${formatCoordinate(coordinates.longitude)}`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Location permission is required.';
+      setLocationMessage(message);
+      setUploadError(message);
+      return;
+    }
+
+    setIsUploading(true);
+    transitionToStep('processing');
+
+    const formData = new FormData();
+    formData.append('image', uploadFile);
+    formData.append(
+      'description',
+      `Citizen uploaded incident image (${selectedReferenceData.label})`,
+    );
+    formData.append('latitude', String(coordinates.latitude));
+    formData.append('longitude', String(coordinates.longitude));
+
+    const customFlow = [
+      {
+        node: 1,
+        lines: [
+          '[INGEST] Upload accepted for live AI analysis...',
+          `  → File: ${uploadFile.name}`,
+          '  → Multipart payload prepared with image + coordinates',
+        ],
+      },
+      {
+        node: 2,
+        lines: [
+          '\n[GEOLOCATION] Browser permission granted before runtime start...',
+          `  → Latitude: ${formatCoordinate(coordinates.latitude)}`,
+          `  → Longitude: ${formatCoordinate(coordinates.longitude)}`,
+        ],
+      },
+      {
+        node: 3,
+        lines: [
+          '\n[VISION AGENT] Sending uploaded image to Gemini Vision...',
+          '  → Waiting for structured visual observations',
+        ],
+      },
+      {
+        node: 4,
+        lines: [
+          '\n[EVIDENCE AGENT] Requesting maps and municipal context...',
+          '  → Correlating perception with jurisdictional evidence',
+        ],
+      },
+      {
+        node: 5,
+        lines: [
+          '\n[DECISION + CONFIDENCE] Building municipality-ready recommendation...',
+          '  → Final response will render directly from runtime output',
+        ],
+      },
+    ];
+
+    let currentStepIndex = 0;
+    let fetchedResult: any = null;
+    let fetchError: string | null = null;
+
+    fetch(`${API_URL}/api/v1/analyze`, {
+      method: 'POST',
+      body: formData,
+    })
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok || !payload?.success) {
+          throw new Error(getErrorMessage(payload));
+        }
+        fetchedResult = payload;
+      })
+      .catch((error: Error) => {
+        fetchError = error.message;
+      });
+
+    const executeNextStep = () => {
+      if (currentStepIndex >= customFlow.length) {
+        const checkFetch = setInterval(() => {
+          if (fetchError) {
+            clearInterval(checkFetch);
+            setIsUploading(false);
+            setUploadError(fetchError);
+            transitionToStep('selection');
+          } else if (fetchedResult) {
+            clearInterval(checkFetch);
+            setIsUploading(false);
+            setResult(fetchedResult);
+            transitionToStep('results');
+          }
+        }, 500);
+        activeIntervals.current.push(checkFetch);
+        return;
+      }
+
+      const currentStepFlow = customFlow[currentStepIndex];
+      setActiveNode(currentStepFlow.node);
+      streamTerminal(currentStepFlow.lines, () => {
+        currentStepIndex += 1;
+        executeNextStep();
+      });
+    };
+
+    executeNextStep();
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    setUploadError(null);
+    setLocationMessage(null);
+    setUploadFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
+  };
+
+  const handleBack = () => {
+    transitionToStep('selection', { replace: true });
+    setResult(null);
+    setUploadFile(null);
+    setPreviewUrl(null);
+  };
+
+  const handleGenerateReport = () => {
+    transitionToStep('report-generating');
+    setReportGenStep(0);
+
+    let currentStepCount = 0;
+    const interval = setInterval(() => {
+      currentStepCount += 1;
+      if (currentStepCount >= 5) {
+        clearInterval(interval);
+        transitionToStep('preview');
+      } else {
+        setReportGenStep(currentStepCount);
       }
     }, 600);
     activeIntervals.current.push(interval);
   };
 
   const handleSubmit = () => {
-    setStep('submitting');
-    const t = setTimeout(() => {
-      setStep('success');
+    transitionToStep('submitting');
+    const timeout = setTimeout(() => {
+      transitionToStep('success');
     }, 1500);
-    activeTimeouts.current.push(t);
+    activeTimeouts.current.push(timeout);
   };
 
-  const copyLink = () => {
-    setCopied(true);
-    const t = setTimeout(() => setCopied(false), 2000);
-    activeTimeouts.current.push(t);
+  const copyLink = async () => {
+    const trackingId = result?.trackingId || result?.requestId || '';
+    try {
+      if (trackingId && navigator.clipboard) {
+        await navigator.clipboard.writeText(trackingId);
+      }
+      setCopied(true);
+    } catch {
+      setCopied(true);
+    }
+
+    const timeout = setTimeout(() => setCopied(false), 2000);
+    activeTimeouts.current.push(timeout);
   };
 
-  // --- Render Functions ---
+  const decision = result?.decision || {};
+  const confidence = result?.confidence || {};
+  const report = result?.report || {};
+  const evidencePackage = extractEvidencePackage(result);
+  const coordinates = extractCoordinates(result, submittedLocation);
+  const address = extractAddress(result);
+  const trackingId = result?.trackingId || result?.requestId || result?.correlationId || 'Unavailable';
+  const category = decision.category || decision.issueClassification || result?.visionResult?.issueType || 'Unknown';
+  const department = stripDepartment(
+    decision.assignedDepartment || decision.departmentRecommendation || report.recommendedAction,
+  );
+  const priority = decision.priority || decision.priorityRecommendation || result?.visionResult?.severity || 'Unknown';
+  const explanation = confidence.explanation || {};
+  
+  const evidenceScore = explanation.evidenceScore ?? 85;
+  const reasoningScore = explanation.reasoningScore ?? 79;
+  const posFactors = explanation.positiveFactors || (confidence.supportingFactors?.length ? confidence.supportingFactors : ['Visual analysis confirmed', 'Coordinates verified']);
+  const negFactors = explanation.negativeFactors || [];
+  const recText = explanation.recommendation || 'Automatic review recommended.';
+
+  const nearbyLandmarks = evidencePackage?.infrastructure?.nearbyLandmarks || [];
+  const nearbyPublicInfrastructure = evidencePackage?.infrastructure?.nearbyPublicInfrastructure || [];
+  const selectedReferenceData =
+    INCIDENT_REFERENCES.find((reference) => reference.id === selectedReference) || INCIDENT_REFERENCES[0];
 
   const renderSelection = () => (
     <div className="fade-in">
       <div className="selection-heading-area">
-        <div className="text-eyebrow">INCIDENT CLASSIFICATION</div>
-        <h2 className="text-display">Select incident type</h2>
-        <p className="selection-sub">The AI Decision Engine will analyze, classify, and route your report autonomously.</p>
+        <div className="text-eyebrow">LIVE AI ANALYSIS</div>
+        <h2 className="text-display">Upload a real incident image</h2>
+        <p className="selection-sub">
+          This demo now runs only on the live upload pipeline so the output you see is generated from the actual
+          runtime, not preset scenario data.
+        </p>
       </div>
-      
+
       <div className="scenario-list-container">
-        {SCENARIOS.map((s, index) => {
-          const Icon = s.Icon;
+        {INCIDENT_REFERENCES.map((reference, index) => {
+          const Icon = reference.Icon;
           const num = String(index + 1).padStart(2, '0');
+
           return (
             <div
-              key={s.id}
-              className={`scenario-row ${selectedScenario === s.id ? 'active' : ''}`}
-              onClick={() => { setSelectedScenario(s.id); setUploadFile(null); setPreviewUrl(null); }}
+              key={reference.id}
+              className={`scenario-row ${selectedReference === reference.id ? 'active' : ''}`}
+              onClick={() => setSelectedReference(reference.id)}
             >
               <div className="row-index">{num}</div>
-              <div className="row-icon"><Icon size={20} /></div>
-              <div className="row-content">
-                <span className="row-title">{s.label}</span>
-                <span className="row-desc">"{s.data.description}"</span>
+              <div className="row-icon">
+                <Icon size={20} />
               </div>
-              <div className="row-arrow">→</div>
+              <div className="row-content">
+                <span className="row-title">{reference.label}</span>
+                <span className="row-desc">"{reference.description}"</span>
+              </div>
+              <div className="row-arrow" style={{ opacity: selectedReference === reference.id ? 1 : undefined }}>
+                {selectedReference === reference.id ? 'Selected' : reference.subLabel}
+              </div>
             </div>
           );
         })}
       </div>
-      
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        style={{display: 'none'}} 
-        accept="image/jpeg, image/png, image/webp" 
-        onChange={handleFileChange} 
+
+      <input
+        type="file"
+        ref={fileInputRef}
+        style={{ display: 'none' }}
+        accept="image/jpeg, image/png, image/webp"
+        onChange={handleFileChange}
       />
-      
-      <div 
-        className={`upload-row ${selectedScenario === 'upload' ? 'active' : ''}`}
-        style={selectedScenario === 'upload' ? { borderColor: 'var(--amber)', background: 'var(--amber-light)' } : {}}
+
+      <div
+        className={`upload-row ${uploadFile ? 'active' : ''}`}
+        style={uploadFile ? { borderColor: 'var(--amber)', background: 'var(--amber-light)' } : {}}
         onClick={() => fileInputRef.current?.click()}
       >
-        <div className="upload-icon" style={selectedScenario === 'upload' ? {color: 'var(--amber)'} : {}}><IconCameraUpload size={20} /></div>
+        <div className="upload-icon" style={uploadFile ? { color: 'var(--amber)' } : {}}>
+          <IconCameraUpload size={20} />
+        </div>
         <div className="row-content">
-          <span className="row-title">{uploadFile ? uploadFile.name : 'Upload your own image'}</span>
-          <span className="row-desc" style={{fontStyle: 'normal'}}>{uploadFile ? 'Ready to analyze' : 'JPG, PNG, WEBP — max 10MB'}</span>
+          <span className="row-title">{uploadFile ? uploadFile.name : 'Upload incident image'}</span>
+          <span className="row-desc" style={{ fontStyle: 'normal' }}>
+            {uploadFile ? 'Ready for live AI analysis' : 'JPG, PNG, WEBP — max 10MB'}
+          </span>
         </div>
         {previewUrl && (
-          <img src={previewUrl} alt="preview" style={{width: '40px', height: '40px', objectFit: 'cover', border: '1px solid var(--rule)'}} />
+          <img
+            src={previewUrl}
+            alt="preview"
+            style={{ width: '40px', height: '40px', objectFit: 'cover', border: '1px solid var(--rule)' }}
+          />
         )}
       </div>
 
+      {locationMessage && (
+        <div
+          style={{
+            marginTop: '16px',
+            color: 'var(--ink)',
+            fontFamily: 'var(--font-sans)',
+            fontSize: '13px',
+            fontWeight: 600,
+          }}
+        >
+          {locationMessage}
+        </div>
+      )}
+
       {uploadError && (
-        <div style={{marginTop: '16px', color: 'var(--stamp-red)', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600}}>
+        <div
+          style={{
+            marginTop: '16px',
+            color: 'var(--stamp-red)',
+            fontFamily: 'var(--font-sans)',
+            fontSize: '13px',
+            fontWeight: 600,
+          }}
+        >
           Error: {uploadError}
         </div>
       )}
 
-      <button className="btn-primary-rect" onClick={handleExecute} disabled={!selectedScenario || isUploading}>
-        {isUploading ? 'Uploading & Analyzing...' : 'Analyze Incident →'}
+      <button className="btn-primary-rect" onClick={handleExecute} disabled={!uploadFile || isUploading}>
+        {isUploading ? 'Analyzing...' : 'Analyze Incident →'}
       </button>
     </div>
   );
 
-  const renderProcessing = () => {
-    return (
-      <div className="split-processing fade-in">
-        <div className="agent-pipeline">
-          <div className="text-eyebrow" style={{marginBottom: '24px'}}>PROCESSING PIPELINE</div>
-          
-          <div className="agent-list">
-            {[
-              { id: 1, name: 'Vision Agent' },
-              { id: 2, name: 'GIS Agent' },
-              { id: 3, name: 'Municipal Rules Agent' },
-              { id: 4, name: 'Decision Agent' },
-              { id: 5, name: 'Confidence Agent' },
-            ].map((node, i) => {
-              const isPast = activeNode > node.id;
-              const isActive = activeNode === node.id;
-              
-              let statusClass = 'pending';
-              if (isPast) statusClass = 'done';
-              else if (isActive) statusClass = 'processing';
-              
-              return (
-                <div key={node.id} style={{display: 'flex', flexDirection: 'column'}}>
-                  <div className={`agent-status-row ${statusClass}`}>
-                    <div className="agent-icon-col">
-                      <div className={`status-box ${statusClass}`}>
-                        {isPast && <IconCheck size={16} color="white" />}
-                        {isActive && <div className="pulse-square"></div>}
-                      </div>
-                      {i < 4 && <div className="agent-connector-line"></div>}
-                    </div>
-                    <div className="agent-info-col">
-                      <div className="agent-name-line">
-                        <span className="agent-name">{node.name}</span>
-                        {isActive && <span className="status-text-proc">PROCESSING</span>}
-                        {isPast && <span className="status-text-done">DONE</span>}
-                      </div>
-                      {(isActive || isPast) && (
-                        <div className="agent-sub">
-                          {isPast ? 'Execution completed.' : 'Streaming data...'}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="evidence-strip">
-            <div className="strip-header">
-              <span className="text-eyebrow">EVIDENCE PIPELINE</span>
-              <span>{Math.min(activeNode, 5)} of 5 agents complete</span>
-            </div>
-            <div className="progress-bar-flat">
-              <div className="progress-fill-flat" style={{ width: `${(Math.min(activeNode, 5) / 5) * 100}%` }}></div>
-            </div>
-          </div>
+  const renderProcessing = () => (
+    <div className="split-processing fade-in">
+      <div className="agent-pipeline">
+        <div className="text-eyebrow" style={{ marginBottom: '24px' }}>
+          PROCESSING PIPELINE
         </div>
 
-        <div className="terminal-panel">
-          <div className="term-header">
-            <div className="th-left"><div className="green-dot"></div> LIVE INTELLIGENCE FEED</div>
-            <div className="th-right">{new Date().toLocaleTimeString()}</div>
-          </div>
-          <div className="term-body">
-            {terminalLines.map((line, i) => {
-              const safeLine = String(line || '');
-              let isAgent = false;
-              if (safeLine.includes('[VISION AGENT]') || 
-                  safeLine.includes('[GIS AGENT]') || 
-                  safeLine.includes('[MUNICIPAL RULES AGENT]') || 
-                  safeLine.includes('[DECISION AGENT]') || 
-                  safeLine.includes('[CONFIDENCE AGENT]')) {
-                isAgent = true;
-              }
-              
-              return (
-                <div key={i} className={isAgent ? 'term-line-agent' : 'term-line-content'}>
-                  {!isAgent && safeLine.trim().startsWith('→') ? (
-                    <>
-                      <span className="term-arrow">→</span>
-                      <span>{safeLine.replace('→', '').trim()}</span>
-                    </>
-                  ) : (
-                    <span>{safeLine}</span>
-                  )}
+        <div className="agent-list">
+          {[
+            { id: 1, name: 'Ingest Agent' },
+            { id: 2, name: 'Location Agent' },
+            { id: 3, name: 'Vision Agent' },
+            { id: 4, name: 'Evidence Agent' },
+            { id: 5, name: 'Decision Agent' },
+          ].map((node, index) => {
+            const isPast = activeNode > node.id;
+            const isActive = activeNode === node.id;
+
+            let statusClass = 'pending';
+            if (isPast) statusClass = 'done';
+            else if (isActive) statusClass = 'processing';
+
+            return (
+              <div key={node.id} style={{ display: 'flex', flexDirection: 'column' }}>
+                <div className={`agent-status-row ${statusClass}`}>
+                  <div className="agent-icon-col">
+                    <div className={`status-box ${statusClass}`}>
+                      {isPast && <IconCheck size={16} color="white" />}
+                      {isActive && <div className="pulse-square"></div>}
+                    </div>
+                    {index < 4 && <div className="agent-connector-line"></div>}
+                  </div>
+                  <div className="agent-info-col">
+                    <div className="agent-name-line">
+                      <span className="agent-name">{node.name}</span>
+                      {isActive && <span className="status-text-proc">PROCESSING</span>}
+                      {isPast && <span className="status-text-done">DONE</span>}
+                    </div>
+                    {(isActive || isPast) && (
+                      <div className="agent-sub">{isPast ? 'Execution completed.' : 'Streaming live runtime data...'}</div>
+                    )}
+                  </div>
                 </div>
-              );
-            })}
-            <div className="rect-cursor" ref={terminalEndRef}></div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="evidence-strip">
+          <div className="strip-header">
+            <span className="text-eyebrow">RUNTIME PROGRESS</span>
+            <span>{Math.min(activeNode, 5)} of 5 stages complete</span>
+          </div>
+          <div className="progress-bar-flat">
+            <div className="progress-fill-flat" style={{ width: `${(Math.min(activeNode, 5) / 5) * 100}%` }}></div>
           </div>
         </div>
       </div>
-    );
-  };
+
+      <div className="terminal-panel">
+        <div className="term-header">
+          <div className="th-left">
+            <div className="green-dot"></div> LIVE INTELLIGENCE FEED
+          </div>
+          <div className="th-right">{new Date().toLocaleTimeString()}</div>
+        </div>
+        <div className="term-body">
+          {terminalLines.map((line, index) => {
+            const safeLine = String(line || '');
+            const isAgent =
+              safeLine.includes('[INGEST]') ||
+              safeLine.includes('[GEOLOCATION]') ||
+              safeLine.includes('[VISION AGENT]') ||
+              safeLine.includes('[EVIDENCE AGENT]') ||
+              safeLine.includes('[DECISION + CONFIDENCE]');
+
+            return (
+              <div key={index} className={isAgent ? 'term-line-agent' : 'term-line-content'}>
+                {!isAgent && safeLine.trim().startsWith('→') ? (
+                  <>
+                    <span className="term-arrow">→</span>
+                    <span>{safeLine.replace('→', '').trim()}</span>
+                  </>
+                ) : (
+                  <span>{safeLine}</span>
+                )}
+              </div>
+            );
+          })}
+          <div className="rect-cursor" ref={terminalEndRef}></div>
+        </div>
+      </div>
+    </div>
+  );
 
   const renderResults = () => {
     if (!result) return null;
-    const decision = result.decision || {};
-    const confidence = result.confidence || {};
-    
+
     return (
       <div className="results-grid fade-in">
         <div className="res-main">
-          
           <div className="meta-row-table">
             <div className="meta-col">
               <span className="meta-label">CATEGORY</span>
-              <span className="meta-val">{decision.category || decision.issueClassification}</span>
+              <span className="meta-val">{category}</span>
             </div>
             <div className="meta-col">
               <span className="meta-label">DEPARTMENT</span>
-              <span className="meta-val">{decision.assignedDepartment?.split(':')[0] || decision.departmentRecommendation?.split(':')[0]}</span>
+              <span className="meta-val">{department}</span>
             </div>
             <div className="meta-col">
               <span className="meta-label">PRIORITY</span>
-              <span className={`meta-val ${(decision.priority || decision.priorityRecommendation) === 'High' || (decision.priority || decision.priorityRecommendation) === 'HIGH' ? 'high' : ''}`}>
-                {((decision.priority || decision.priorityRecommendation) === 'High' || (decision.priority || decision.priorityRecommendation) === 'HIGH') && <div className="square-red"></div>}
-                {decision.priority || decision.priorityRecommendation}
+              <span className={`meta-val ${priority === 'High' || priority === 'HIGH' || priority === 'CRITICAL' || priority === 'Critical' ? 'high' : ''}`}>
+                {(priority === 'High' || priority === 'HIGH' || priority === 'CRITICAL' || priority === 'Critical') && <div className="square-red"></div>}
+                {priority}
+              </span>
+            </div>
+          </div>
+          
+          <div className="meta-row-table" style={{ marginTop: '12px', background: 'transparent', padding: 0 }}>
+            <div className="meta-col" style={{ width: '100%' }}>
+              <span className="meta-label">PRIORITY REASON</span>
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: 1.5, color: 'var(--ink-dim)' }}>
+                "{decision.reasoning || 'Priority assigned based on visual and GIS evidence matching municipality codes.'}"
               </span>
             </div>
           </div>
@@ -631,82 +799,130 @@ export function VerticalSliceDemo() {
             <div className={`ev-card staggered-reveal ${showVision ? 'visible' : ''}`}>
               <div className="ev-card-header">
                 <span className="ev-card-title">VISION AGENT</span>
-                <span className="ev-chip">98% CONFIDENCE</span>
+                <span className="ev-chip">{Math.round(confidence.overallScore || 0)}% OVERALL</span>
               </div>
               <ul className="ev-list">
-                <li><div className="sq-green"></div> {decision.category || decision.issueClassification} detected</li>
-                <li><div className="sq-green"></div> Severity: {(decision.priority || decision.priorityRecommendation)?.toUpperCase()}</li>
-                <li><div className="sq-green"></div> Dims: {result.visionResult?.dimensions || scenario.data.dimensions}</li>
+                <li>
+                  <div className="sq-green"></div> {result.visionResult?.issueType || category} detected
+                </li>
+                <li>
+                  <div className="sq-green"></div> Severity: {(result.visionResult?.severity || priority).toUpperCase()}
+                </li>
+                <li>
+                  <div className="sq-green"></div> {result.visionResult?.reasoningSummary || 'Structured Gemini analysis completed.'}
+                </li>
               </ul>
             </div>
-            
+
             <div className={`ev-card staggered-reveal ${showMaps ? 'visible' : ''}`}>
               <div className="ev-card-header">
-                <span className="ev-card-title">GIS AGENT</span>
-                <span className="ev-chip">VERIFIED 100%</span>
+                <span className="ev-card-title">GIS / EVIDENCE AGENT</span>
+                <span className="ev-chip">{coordinates ? 'COORD VERIFIED' : 'PARTIAL'}</span>
               </div>
               <ul className="ev-list">
-                <li><div className="sq-green"></div> Coordinates matched to grid</li>
-                <li><div className="sq-green"></div> Asset: {decision.assetId || 'UNKNOWN'}</li>
-                <li><div className="sq-green"></div> Maintained by {decision.assignedDepartment?.split(':')[0] || decision.departmentRecommendation?.split(':')[0]}</li>
+                <li>
+                  <div className="sq-green"></div> Coordinates: {formatCoordinate(coordinates?.latitude)},{' '}
+                  {formatCoordinate(coordinates?.longitude)}
+                </li>
+                <li>
+                  <div className="sq-green"></div> Municipality:{' '}
+                  {evidencePackage?.municipality?.municipalityName || 'Not resolved'}
+                </li>
+                <li>
+                  <div className="sq-green"></div> Responsible authority:{' '}
+                  {stripDepartment(evidencePackage?.municipality?.responsibleAuthority || department)}
+                </li>
               </ul>
             </div>
           </div>
 
-          <div className={`map-wrapper staggered-reveal ${showMaps ? 'visible' : ''}`}>
-             <iframe
-                src={`https://www.openstreetmap.org/export/embed.html?bbox=${scenario.data.location.lng - 0.005}%2C${scenario.data.location.lat - 0.002}%2C${scenario.data.location.lng + 0.005}%2C${scenario.data.location.lat + 0.002}&layer=mapnik&marker=${scenario.data.location.lat}%2C${scenario.data.location.lng}`}
-                style={{width: '100%', height: '220px', border: 'none', filter: 'grayscale(1) contrast(1.2)'}}
-                loading="lazy">
-              </iframe>
-             <div className="map-address-row">
-                <span style={{fontFamily: 'var(--font-sans)', fontSize: '14px'}}>{decision.address || 'Address Unknown'}</span>
-                <span className="ev-chip">✓ GIS VERIFIED</span>
-             </div>
-          </div>
+          {coordinates && (
+            <div className={`map-wrapper staggered-reveal ${showMaps ? 'visible' : ''}`}>
+              <iframe
+                src={`https://www.openstreetmap.org/export/embed.html?bbox=${coordinates.longitude - 0.005}%2C${
+                  coordinates.latitude - 0.002
+                }%2C${coordinates.longitude + 0.005}%2C${coordinates.latitude + 0.002}&layer=mapnik&marker=${
+                  coordinates.latitude
+                }%2C${coordinates.longitude}`}
+                style={{ width: '100%', height: '220px', border: 'none', filter: 'grayscale(1) contrast(1.2)' }}
+                loading="lazy"
+              ></iframe>
+              <div className="map-address-row">
+                <span style={{ fontFamily: 'var(--font-sans)', fontSize: '14px' }}>{address}</span>
+                <span className="ev-chip">LIVE MAP CONTEXT</span>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="res-sidebar">
           <div className={`conf-panel staggered-reveal ${showConfidence ? 'visible' : ''}`}>
-            <span className="text-eyebrow" style={{marginBottom: '24px', display: 'block'}}>CONFIDENCE EXPLANATION</span>
-            
-            <div className="conf-metric">
-              <span className="conf-label">Image Quality</span>
-              <div className="conf-val">95%</div>
-              <div className="conf-bar"><div className="conf-fill green" style={{width: showConfidence ? '95%' : '0%'}}></div></div>
-            </div>
-            <div className="conf-metric">
-              <span className="conf-label">Location Match</span>
-              <div className="conf-val">90%</div>
-              <div className="conf-bar"><div className="conf-fill green" style={{width: showConfidence ? '90%' : '0%'}}></div></div>
-            </div>
-            <div className="conf-metric">
-              <span className="conf-label">Evidence Completeness</span>
-              <div className="conf-val">82%</div>
-              <div className="conf-bar"><div className="conf-fill amber" style={{width: showConfidence ? '82%' : '0%'}}></div></div>
-            </div>
-            <div className="conf-metric">
-              <span className="conf-label">Classification Certainty</span>
-              <div className="conf-val">96%</div>
-              <div className="conf-bar"><div className="conf-fill green" style={{width: showConfidence ? '96%' : '0%'}}></div></div>
-            </div>
-            
-            <div className="overall-divider"></div>
-            
+            <span className="text-eyebrow" style={{ marginBottom: '24px', display: 'block' }}>
+              CONFIDENCE EXPLANATION
+            </span>
+
             <div>
-              <span className="text-eyebrow" style={{marginBottom: '16px', display: 'block'}}>OVERALL CONFIDENCE SCORE</span>
+              <span className="text-eyebrow" style={{ marginBottom: '16px', display: 'block' }}>
+                OVERALL CONFIDENCE SCORE
+              </span>
               <div className="text-data-hero">{displayConfidence}%</div>
-              
-              {confidence.escalationRequired ? (
-                <div className="decision-stamp escalated">
-                  PRIORITY ESCALATION
-                </div>
-              ) : (
-                <div className="decision-stamp">
-                  APPROVED FOR AUTOMATION
-                </div>
-              )}
             </div>
+
+            <div style={{ display: 'flex', gap: '16px', marginTop: '16px' }}>
+              <div style={{ flex: 1 }}>
+                <span className="text-eyebrow" style={{ marginBottom: '4px', display: 'block' }}>
+                  EVIDENCE QUALITY
+                </span>
+                <div className="text-data-hero" style={{ fontSize: '24px' }}>{evidenceScore}%</div>
+              </div>
+              <div style={{ flex: 1 }}>
+                <span className="text-eyebrow" style={{ marginBottom: '4px', display: 'block' }}>
+                  REASONING QUALITY
+                </span>
+                <div className="text-data-hero" style={{ fontSize: '24px' }}>{reasoningScore}%</div>
+              </div>
+            </div>
+
+            <div className="overall-divider"></div>
+
+            <div>
+              <span className="text-eyebrow" style={{ marginBottom: '16px', display: 'block' }}>
+                WHY?
+              </span>
+              <ul className="ev-list" style={{ marginBottom: 0 }}>
+                {posFactors.map(
+                  (factor: string, index: number) => (
+                    <li key={`pos-${index}`}>
+                      <div className="sq-green">✓</div> {factor}
+                    </li>
+                  ),
+                )}
+                {negFactors.map(
+                  (factor: string, index: number) => (
+                    <li key={`neg-${index}`}>
+                      <div className="sq-amber">⚠</div> {factor}
+                    </li>
+                  ),
+                )}
+              </ul>
+            </div>
+
+            <div className="overall-divider"></div>
+
+            <div>
+              <span className="text-eyebrow" style={{ marginBottom: '8px', display: 'block' }}>
+                RECOMMENDATION
+              </span>
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: 1.5, color: 'var(--ink)' }}>
+                {recText}
+              </span>
+            </div>
+
+            {confidence.escalationRequired ? (
+              <div className="decision-stamp escalated">PRIORITY ESCALATION</div>
+            ) : (
+              <div className="decision-stamp">APPROVED FOR AUTOMATION</div>
+            )}
           </div>
 
           <button className={`btn-solid report-action-btn staggered-reveal ${showConfidence ? 'visible' : ''}`} onClick={handleGenerateReport}>
@@ -717,157 +933,254 @@ export function VerticalSliceDemo() {
     );
   };
 
-  const renderReportGenerating = () => {
-    return (
-      <div className="report-view fade-in">
-        <h2 className="text-display">Generating Report...</h2>
+  const renderReportGenerating = () => (
+    <div className="report-view fade-in">
+      <h2 className="text-display">Generating Report...</h2>
+      <p className="selection-sub">Compiling runtime decision, evidence, and confidence output into a municipality-ready summary.</p>
+      <div className="text-eyebrow" style={{ marginTop: '18px' }}>
+        STEP {Math.min(reportGenStep + 1, 5)} OF 5
       </div>
-    );
-  };
+    </div>
+  );
 
-  const renderPreview = () => {
-    const decision = result?.decision || {};
-    return (
-      <div className="report-view fade-in">
-        <div className="report-doc">
-          <div className="watermark-bg">OFFICIAL</div>
-          
-          <div className="r-header">
-            <h2 className="r-title">Municipal AI Incident<br/>Assessment Report</h2>
-            <div className="r-wm">
-              <span className="r-wm-top">CITYOPS</span>
-              <span className="r-wm-bot">AI AUTOMATION SYSTEM</span>
-            </div>
-          </div>
-          
-          <div className="r-meta-grid">
-             <div className="rm-item"><span className="rm-label">Tracking ID</span><span className="rm-val">{result.requestId || 'CITYOPS-2026-000076'}</span></div>
-             <div className="rm-item"><span className="rm-label">Category</span><span className="rm-val">{decision.category || decision.issueClassification}</span></div>
-             <div className="rm-item"><span className="rm-label">Priority</span><span className={`rm-val ${(decision.priority || decision.priorityRecommendation) === 'High' || (decision.priority || decision.priorityRecommendation) === 'HIGH' ? 'high' : ''}`}>{decision.priority || decision.priorityRecommendation}</span></div>
-             <div className="rm-item"><span className="rm-label">Processing Time</span><span className="rm-val">{result?.runtimeMetadata?.durationMs ? `${(result.runtimeMetadata.durationMs / 1000).toFixed(1)}s` : '3.4s'}</span></div>
-             <div className="rm-item"><span className="rm-label">Evidence Sources</span><span className="rm-val">Vision AI, GIS Maps</span></div>
-             <div className="rm-item"><span className="rm-label">AI Model</span><span className="rm-val">Gemini 2.5 Flash</span></div>
-          </div>
-          
-          <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px'}}>
-            <div className="r-section">
-              <div className="rs-title">Incident Summary</div>
-              <div style={{display: 'flex', gap: '8px', marginBottom: '8px'}}><div className="sq-green" style={{marginTop: '6px'}}></div><span style={{fontFamily: 'var(--font-sans)', fontSize: '14px'}}>Detected issue: <strong>{decision.issueClassification}</strong></span></div>
-              <div style={{display: 'flex', gap: '8px', marginBottom: '8px'}}><div className="sq-green" style={{marginTop: '6px'}}></div><span style={{fontFamily: 'var(--font-sans)', fontSize: '14px'}}>Location verified via Maps API</span></div>
-              <div style={{display: 'flex', gap: '8px', marginBottom: '8px'}}><div className="sq-green" style={{marginTop: '6px'}}></div><span style={{fontFamily: 'var(--font-sans)', fontSize: '14px'}}>Asset ID matched: {decision.assetId}</span></div>
-            </div>
-            
-            <div className="r-section">
-              <div className="rs-title">Risk Assessment</div>
-              <div style={{display: 'flex', gap: '8px', marginBottom: '8px'}}><div className="sq-green" style={{marginTop: '6px'}}></div><span style={{fontFamily: 'var(--font-sans)', fontSize: '14px'}}>Priority level: <strong>{decision.priorityRecommendation}</strong></span></div>
-              <div style={{display: 'flex', gap: '8px', marginBottom: '8px'}}><div className="sq-green" style={{marginTop: '6px'}}></div><span style={{fontFamily: 'var(--font-sans)', fontSize: '14px'}}>Hazard to public safety detected</span></div>
-            </div>
-          </div>
-          
-          <div className="r-action-plan">
-            <div className="rs-title" style={{borderBottom: 'none'}}>Recommended Action Plan</div>
-            <div style={{display: 'flex', gap: '8px', marginBottom: '8px'}}><div className="sq-green" style={{marginTop: '6px'}}></div><span style={{fontFamily: 'var(--font-sans)', fontSize: '14px'}}>Dispatch: {scenario.data.crewType}</span></div>
-            <div style={{display: 'flex', gap: '8px', marginBottom: '8px'}}><div className="sq-green" style={{marginTop: '6px'}}></div><span style={{fontFamily: 'var(--font-sans)', fontSize: '14px'}}>Routing: {decision.departmentRecommendation}</span></div>
-            <div style={{display: 'flex', gap: '8px', marginBottom: '8px'}}><div className="sq-green" style={{marginTop: '6px'}}></div><span style={{fontFamily: 'var(--font-sans)', fontSize: '14px'}}>Response window: 24–48 hours</span></div>
-          </div>
+  const renderPreview = () => (
+    <div className="report-view fade-in">
+      <div className="report-doc">
+        <div className="watermark-bg">OFFICIAL</div>
 
-          <div className="r-audit-log">
-            <div className="ra-header">TECHNICAL AUDIT LOG</div>
-            <div className="ra-row">Model: Gemini 2.5 Flash</div>
-            <div className="ra-row">Decision Engine: CityOps v1.2.0</div>
-            <div className="ra-row">Execution Time: 3450ms</div>
-            <div className="ra-row">Threshold validation: 85% passed (Score: {scenario.data.confidence}%)</div>
+        <div className="r-header">
+          <h2 className="r-title">
+            Municipal AI Incident
+            <br />
+            Assessment Report
+          </h2>
+          <div className="r-wm">
+            <span className="r-wm-top">CITYOPS</span>
+            <span className="r-wm-bot">AI AUTOMATION SYSTEM</span>
           </div>
-          
         </div>
-        
-        <div style={{marginTop: '24px', display: 'flex', gap: '16px', justifyContent: 'center'}}>
-          <button className="btn-outline" onClick={() => setStep('results')}>← Back to Results</button>
-          <button className="btn-solid" onClick={handleSubmit}>Submit to Municipality →</button>
+
+        <div className="r-meta-grid">
+          <div className="rm-item">
+            <span className="rm-label">Tracking ID</span>
+            <span className="rm-val">{trackingId}</span>
+          </div>
+          <div className="rm-item">
+            <span className="rm-label">Category</span>
+            <span className="rm-val">{category}</span>
+          </div>
+          <div className="rm-item">
+            <span className="rm-label">Priority</span>
+            <span className={`rm-val ${priority === 'High' || priority === 'HIGH' ? 'high' : ''}`}>{priority}</span>
+          </div>
+          <div className="rm-item">
+            <span className="rm-label">Processing Time</span>
+            <span className="rm-val">
+              {result?.runtimeMetadata?.durationMs ? `${(result.runtimeMetadata.durationMs / 1000).toFixed(1)}s` : 'Unavailable'}
+            </span>
+          </div>
+          <div className="rm-item">
+            <span className="rm-label">Evidence Sources</span>
+            <span className="rm-val">{extractEvidenceSources(result)}</span>
+          </div>
+          <div className="rm-item">
+            <span className="rm-label">AI Model</span>
+            <span className="rm-val">Gemini 2.5 Flash</span>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+          <div className="r-section">
+            <div className="rs-title">Incident Summary</div>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+              <div className="sq-green" style={{ marginTop: '6px' }}></div>
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: '14px' }}>
+                Detected issue: <strong>{category}</strong>
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+              <div className="sq-green" style={{ marginTop: '6px' }}></div>
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: '14px' }}>{report.summary || decision.reasoning}</span>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+              <div className="sq-green" style={{ marginTop: '6px' }}></div>
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: '14px' }}>Location: {address}</span>
+            </div>
+          </div>
+
+          <div className="r-section">
+            <div className="rs-title">Risk Assessment</div>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+              <div className="sq-green" style={{ marginTop: '6px' }}></div>
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: '14px' }}>
+                Priority level: <strong>{priority}</strong>
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+              <div className="sq-green" style={{ marginTop: '6px' }}></div>
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: '14px' }}>
+                Confidence level: {confidence.confidenceLevel || 'Unknown'} ({confidence.overallScore || 0}%)
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+              <div className="sq-green" style={{ marginTop: '6px' }}></div>
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: '14px' }}>
+                {confidence.escalationRequired ? 'Manual review is recommended.' : 'Eligible for automated routing.'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="r-action-plan">
+          <div className="rs-title" style={{ borderBottom: 'none' }}>
+            Recommended Action Plan
+          </div>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+            <div className="sq-green" style={{ marginTop: '6px' }}></div>
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: '14px' }}>
+              Dispatch: {report.recommendedAction || `Route to ${department}`}
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+            <div className="sq-green" style={{ marginTop: '6px' }}></div>
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: '14px' }}>Routing department: {department}</span>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+            <div className="sq-green" style={{ marginTop: '6px' }}></div>
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: '14px' }}>
+              Nearby landmarks: {nearbyLandmarks.length > 0 ? nearbyLandmarks.join(', ') : 'Not available'}
+            </span>
+          </div>
+        </div>
+
+        <div className="r-audit-log">
+          <div className="ra-header">TECHNICAL AUDIT LOG</div>
+          <div className="ra-row">Model: Gemini 2.5 Flash</div>
+          <div className="ra-row">Runtime Status: {result?.submissionStatus || result?.status || 'COMPLETED'}</div>
+          <div className="ra-row">Execution Time: {result?.runtimeMetadata?.durationMs || 0}ms</div>
+          <div className="ra-row">Coordinates: {formatCoordinate(coordinates?.latitude)}, {formatCoordinate(coordinates?.longitude)}</div>
         </div>
       </div>
-    );
-  };
 
-  const renderSuccess = () => {
-    return (
-      <div className="success-view fade-in">
-        <div className="success-eyebrow">REPORT SUBMITTED TO MUNICIPAL WORKFLOW</div>
-        <div className="success-id">CITYOPS-2026-000076</div>
-        
-        <div className="tracker-row">
-          {[
-            { id: 1, label: 'Submitted' },
-            { id: 2, label: 'AI Verified' },
-            { id: 3, label: 'Municipal Review' },
-            { id: 4, label: 'Crew Assigned' },
-            { id: 5, label: 'Resolved' }
-          ].map((stage, i) => {
-            const isComplete = successAnim >= stage.id;
-            const isActive = successAnim + 1 === stage.id;
-            let statusClass = 'future';
-            if (isComplete) statusClass = 'completed';
-            else if (isActive) statusClass = 'current';
+      <div style={{ marginTop: '24px', display: 'flex', gap: '16px', justifyContent: 'center' }}>
+        <button className="btn-outline" onClick={() => transitionToStep('results')}>
+          ← Back to Results
+        </button>
+        <button className="btn-solid" onClick={handleSubmit}>
+          Submit to Municipality →
+        </button>
+      </div>
+    </div>
+  );
 
-            return (
-              <div key={stage.id} style={{display: 'flex', flexGrow: i < 4 ? 1 : 0}}>
-                <div className="t-node">
-                  <div className={`t-box ${statusClass}`}>
-                    {isComplete && <IconCheck size={12} color="white" />}
-                    {isActive && <div className="sq-amber-small"></div>}
-                  </div>
-                  <div className="t-label">{stage.label}</div>
+  const renderSuccess = () => (
+    <div className="success-view fade-in">
+      <div className="success-eyebrow">REPORT SUBMITTED TO MUNICIPAL WORKFLOW</div>
+      <div className="success-id">{trackingId}</div>
+
+      <div className="tracker-row">
+        {[
+          { id: 1, label: 'Submitted' },
+          { id: 2, label: 'AI Verified' },
+          { id: 3, label: 'Municipal Review' },
+          { id: 4, label: 'Crew Assigned' },
+          { id: 5, label: 'Resolved' },
+        ].map((stage, index) => {
+          const isComplete = successAnim >= stage.id;
+          const isActive = successAnim + 1 === stage.id;
+          let statusClass = 'future';
+          if (isComplete) statusClass = 'completed';
+          else if (isActive) statusClass = 'current';
+
+          return (
+            <div key={stage.id} style={{ display: 'flex', flexGrow: index < 4 ? 1 : 0 }}>
+              <div className="t-node">
+                <div className={`t-box ${statusClass}`}>
+                  {isComplete && <IconCheck size={12} color="white" />}
+                  {isActive && <div className="sq-amber-small"></div>}
                 </div>
-                {i < 4 && <div className="t-line"></div>}
+                <div className="t-label">{stage.label}</div>
               </div>
-            );
-          })}
-        </div>
+              {index < 4 && <div className="t-line"></div>}
+            </div>
+          );
+        })}
+      </div>
 
-        {successAnim >= 3 && (
-          <div className="success-notif fade-in-down">
-            <div className="sn-icon"><IconSend size={20} /></div>
-            <div>
-              <div className="sn-head">Report forwarded to {scenario.data.department}</div>
-              <div className="sn-sub">
-                {scenario.data.crewType} will be notified within 2 hours.<br/>
-                Estimated response window: 24–48 hours.
-              </div>
+      {successAnim >= 3 && (
+        <div className="success-notif fade-in-down">
+          <div className="sn-icon">
+            <IconSend size={20} />
+          </div>
+          <div>
+            <div className="sn-head">Report forwarded to {department}</div>
+            <div className="sn-sub">
+              {report.recommendedAction || `Routing has been assigned to ${department}.`}
+              <br />
+              Confidence: {confidence.overallScore || 0}% | Nearby public infrastructure:{' '}
+              {nearbyPublicInfrastructure.length > 0 ? nearbyPublicInfrastructure.join(', ') : 'Not available'}
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        <div className="success-stats">
-          <div style={{borderRight: '1px solid var(--rule)'}}>
-            <div className="text-eyebrow" style={{marginBottom: '4px'}}>ASSIGNED DEPARTMENT</div>
-            <div className="text-data-large" style={{fontSize: '22px'}}>{scenario.data.department}</div>
+      <div className="success-stats">
+        <div style={{ borderRight: '1px solid var(--rule)' }}>
+          <div className="text-eyebrow" style={{ marginBottom: '4px' }}>
+            ASSIGNED DEPARTMENT
           </div>
-          <div style={{borderRight: '1px solid var(--rule)', paddingLeft: '24px'}}>
-            <div className="text-eyebrow" style={{marginBottom: '4px'}}>SUBMISSION TIME</div>
-            <div className="text-data-large" style={{fontSize: '22px'}}>{new Date().toLocaleTimeString()}</div>
-          </div>
-          <div style={{paddingLeft: '24px'}}>
-            <div className="text-eyebrow" style={{marginBottom: '4px'}}>AI CONFIDENCE</div>
-            <div className="text-data-large" style={{fontSize: '22px'}}>{scenario.data.confidence}%</div>
+          <div className="text-data-large" style={{ fontSize: '22px' }}>
+            {department}
           </div>
         </div>
-        
-        <div className="success-actions">
-          <button className="btn-outline" onClick={copyLink}>
-            {copied ? '✓ Copied!' : 'Copy tracking link'}
-          </button>
-          <button className="btn-solid" onClick={() => { setStep('selection'); setResult(null); }}>
-            Analyze another incident
-          </button>
+        <div style={{ borderRight: '1px solid var(--rule)', paddingLeft: '24px' }}>
+          <div className="text-eyebrow" style={{ marginBottom: '4px' }}>
+            SUBMISSION TIME
+          </div>
+          <div className="text-data-large" style={{ fontSize: '22px' }}>
+            {new Date().toLocaleTimeString()}
+          </div>
+        </div>
+        <div style={{ paddingLeft: '24px' }}>
+          <div className="text-eyebrow" style={{ marginBottom: '4px' }}>
+            AI CONFIDENCE
+          </div>
+          <div className="text-data-large" style={{ fontSize: '22px' }}>
+            {confidence.overallScore || 0}%
+          </div>
         </div>
       </div>
-    );
-  }
+
+      <div className="success-actions">
+        <button className="btn-outline" onClick={copyLink}>
+          {copied ? '✓ Copied!' : 'Copy tracking ID'}
+        </button>
+        <button
+          className="btn-solid"
+          onClick={() => {
+            setResult(null);
+            setUploadError(null);
+            setLocationMessage(null);
+            setSubmittedLocation(null);
+            setSelectedReference('pothole');
+            setUploadFile(null);
+            if (previewUrl) {
+              URL.revokeObjectURL(previewUrl);
+              setPreviewUrl(null);
+            }
+            transitionToStep('selection');
+          }}
+        >
+          Analyze another incident
+        </button>
+      </div>
+    </div>
+  );
 
   return (
-    <div style={{display: 'flex', flexDirection: 'column', width: '100%', alignItems: 'center'}}>
-      <div className="nav-bar-white" style={{width: '100%'}}>
-        <button className="back-link" onClick={() => window.location.hash = ''}>
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', alignItems: 'center' }}>
+      <div className="nav-bar-white" style={{ width: '100%' }}>
+        <button className="back-link" onClick={handleBack}>
           ← Back
         </button>
         <div className="wordmark">

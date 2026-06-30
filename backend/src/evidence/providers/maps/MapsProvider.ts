@@ -41,12 +41,14 @@ export class MapsProvider implements EvidenceProvider {
 
       return {
         requestId: request.requestId,
+        source: EvidenceSource.GOOGLE_MAPS,
         status: EvidenceStatus.VALID,
         evidence
       };
     } catch (error: any) {
       return {
         requestId: request.requestId,
+        source: EvidenceSource.GOOGLE_MAPS,
         status: EvidenceStatus.ERROR,
         evidence: null,
         errors: [error.message]

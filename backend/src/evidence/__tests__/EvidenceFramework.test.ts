@@ -42,6 +42,7 @@ describe('EvidenceFramework', () => {
   it('executes successfully and populates metadata', async () => {
     mockProvider.collectEvidence.mockResolvedValue({
       requestId: 'req-1',
+      source: EvidenceSource.VISION_ANALYSIS,
       status: EvidenceStatus.VALID,
       evidence: {
         id: randomUUID(),
@@ -69,6 +70,7 @@ describe('EvidenceFramework', () => {
   it('fails if collected evidence is malformed', async () => {
     mockProvider.collectEvidence.mockResolvedValue({
       requestId: 'req-1',
+      source: EvidenceSource.VISION_ANALYSIS,
       status: EvidenceStatus.VALID,
       evidence: {
         id: randomUUID(),

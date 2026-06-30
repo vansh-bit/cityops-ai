@@ -37,6 +37,7 @@ export class ProviderScheduler {
         
         executionPromises.push(Promise.resolve({
           requestId: request.requestId,
+          source: request.source,
           status: EvidenceStatus.ERROR,
           evidence: null,
           errors: [`No valid provider found for source: ${request.source}`]

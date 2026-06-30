@@ -4,15 +4,35 @@ import { RuntimeFactory } from '../ai/factory/RuntimeFactory';
 import { PerceptionResult } from '../ai/reasoning/models/decisionModels';
 import { VisionProvider } from '../evidence/providers/vision/VisionProvider';
 import { EvidenceFramework } from '../evidence/framework/EvidenceFramework';
+import { EvidenceSource } from '../evidence/contracts/evidenceContracts';
 import logger from '../utils/logger';
 import { randomUUID } from 'crypto';
 import multer from 'multer';
+import { PersistenceCoordinator } from '../persistence/PersistenceCoordinator';
 
 const demoRouter = Router();
 const upload = multer({ 
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 } // 10 MB limit
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB limit
+  fileFilter: (req: any, file: any, cb: any) => {
+    // Validate MIME type before allocating memory
+    const validMimes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (validMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('UNSUPPORTED_MEDIA_TYPE'));
+    }
+  }
 });
+
+/**
+ * Phase 5A Architectural Decision: In-Memory Uploads
+ * 
+ * For Phase 5A, uploaded images are held entirely in memory via multer.memoryStorage().
+ * This allows fast integration with the Gemini Vision API without introducing Cloud Storage dependencies.
+ * The buffer is explicitly released after processing to minimize memory footprint.
+ * Cloud Storage persistence will be introduced in Phase 5C.
+ */
 
 /**
  * POST /api/v1/demo/analyze
@@ -59,7 +79,7 @@ demoRouter.post(`${API_PREFIX}/demo/analyze`, (async (req: Request, res: Respons
  * POST /api/v1/analyze
  * Production Gemini Vision Endpoint for Phase 5A
  */
-demoRouter.post(`${API_PREFIX}/analyze`, upload.single('image'), (async (req: Request, res: Response) => {
+export const analyzeHandler = (async (req: any, res: any) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -76,7 +96,25 @@ demoRouter.post(`${API_PREFIX}/analyze`, upload.single('image'), (async (req: Re
       });
     }
 
-    const { latitude, longitude, description, demoMode } = req.body;
+    const { latitude, longitude, description } = req.body;
+
+    const parsedLat = Number(latitude);
+    const parsedLng = Number(longitude);
+
+    if (isNaN(parsedLat) || isNaN(parsedLng)) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'INVALID_COORDINATES', message: 'Latitude and longitude must be valid numbers.' }
+      });
+    }
+
+    logger.info('Analyze request accepted', {
+      filename: req.file.originalname,
+      mimeType: req.file.mimetype,
+      size: req.file.size,
+      latitude: parsedLat,
+      longitude: parsedLng
+    });
 
     // 1. Initialize Vision Provider
     const framework = new EvidenceFramework();
@@ -86,16 +124,21 @@ demoRouter.post(`${API_PREFIX}/analyze`, upload.single('image'), (async (req: Re
     // 2. Fetch VisionResult
     const visionEvidence = await visionProvider.collectEvidence({
       requestId: randomUUID(),
-      source: 'VISION_ANALYSIS',
+      source: EvidenceSource.VISION_ANALYSIS,
       parameters: {
         imageBuffer: req.file.buffer,
         mimeType: req.file.mimetype
-      },
-      timestamp: new Date().toISOString()
+      }
     });
+    
+    // Explicitly delete buffer after persistence, not here
+    // delete req.file.buffer;
 
     if (visionEvidence.status === 'ERROR') {
       const errorMsg = visionEvidence.errors?.[0] || 'Unknown error';
+      if (errorMsg.includes('CONTENT_NOT_SUPPORTED')) {
+        return res.status(422).json({ success: false, error: { code: 'CONTENT_NOT_SUPPORTED', message: 'The uploaded image could not be analyzed.' } });
+      }
       if (errorMsg.includes('TIMEOUT')) {
         return res.status(504).json({ success: false, error: { code: 'GATEWAY_TIMEOUT', message: 'Image analysis timed out.' } });
       }
@@ -114,8 +157,8 @@ demoRouter.post(`${API_PREFIX}/analyze`, upload.single('image'), (async (req: Re
       visualObservations: visionResult.observations || [],
       metadata: {
         imageRef: 'uploaded-image',
-        latitude: parseFloat(latitude) || 40.7128,
-        longitude: parseFloat(longitude) || -74.0060,
+        latitude: parsedLat,
+        longitude: parsedLng,
         citizenDescription: description || '',
         timestamp: new Date().toISOString()
       }
@@ -125,13 +168,33 @@ demoRouter.post(`${API_PREFIX}/analyze`, upload.single('image'), (async (req: Re
     const coordinator = await RuntimeFactory.create();
     logger.info(`Starting Production Execution for image upload`);
     const runtimeResponse = await coordinator.execute(perception);
+    const runtimeCompletedAt = new Date().toISOString(); // F-06: Capture runtime completion time
+
+    if (runtimeResponse.status === 'FAILED') {
+      logger.error('Runtime failed to execute properly:', runtimeResponse.failureDetails);
+      return res.status(500).json({ 
+        success: false, 
+        error: { 
+          code: 'RUNTIME_ERROR', 
+          message: runtimeResponse.failureDetails?.message || 'Runtime execution failed.' 
+        },
+        failureDetails: runtimeResponse.failureDetails
+      });
+    }
 
     // 5. Build Final API Contract Response
-    const responsePayload = {
-      success: true,
-      requestId: runtimeResponse.requestId,
-      timestamp: runtimeResponse.timestamp,
+    
+    let evidencePkgData = undefined;
+    if (runtimeResponse.evidence && runtimeResponse.evidence.length > 0) {
+      const evidencePkg = runtimeResponse.evidence.find(e => e.source === 'evidence_collection_tool' || e.data?.package);
+      if (evidencePkg) {
+        evidencePkgData = evidencePkg.data?.package || evidencePkg.data;
+      }
+    }
+
+    const reportBase = {
       visionResult: visionResult,
+      evidencePackage: evidencePkgData,
       decision: {
         category: runtimeResponse.decision?.issueClassification || 'UNKNOWN',
         priority: runtimeResponse.decision?.priorityRecommendation || 'UNKNOWN',
@@ -139,31 +202,98 @@ demoRouter.post(`${API_PREFIX}/analyze`, upload.single('image'), (async (req: Re
         reasoning: runtimeResponse.decision?.reasoning || 'No reasoning provided.'
       },
       confidence: {
-        overallScore: runtimeResponse.confidence?.score || 0,
-        confidenceLevel: runtimeResponse.confidence?.level || 'UNKNOWN',
+        overallScore: runtimeResponse.confidence?.confidenceValue || 0,
+        confidenceLevel: runtimeResponse.confidence?.confidenceLevel || 'UNKNOWN',
         escalationRequired: runtimeResponse.confidence?.escalationRequired || false,
-        reasoning: runtimeResponse.confidence?.explanation || 'No explanation provided.'
+        reasoning: runtimeResponse.confidence?.evaluationSummary || 'No explanation provided.',
+        supportingFactors: runtimeResponse.confidence?.supportingFactors || [],
+        explanation: runtimeResponse.confidence?.explanation
       },
       report: {
         reportTitle: `${runtimeResponse.decision?.issueClassification || 'Unknown'} Incident`,
         summary: runtimeResponse.decision?.reasoning || 'No summary available.',
         recommendedAction: `Dispatch ${runtimeResponse.decision?.departmentRecommendation || 'team'}`,
-        status: "READY_FOR_SUBMISSION"
+        status: "SUBMITTED"
       }
+    };
+
+    // 6. Persistence
+    const persistenceCoordinator = new PersistenceCoordinator();
+    const persistenceResult = await persistenceCoordinator.persist({
+      imageBuffer: req.file.buffer,
+      mimeType: req.file.mimetype,
+      originalFilename: req.file.originalname,
+      imageSize: req.file.size || req.file.buffer.length,
+      runtimeResponse: reportBase,
+      location: { lat: parsedLat, lng: parsedLng },
+      runtimeCompletedAt // F-06
+    });
+
+    // Clean up memory
+    delete req.file.buffer;
+
+    const fallbackTrackingId = runtimeResponse.correlationId || runtimeResponse.runtimeId || randomUUID();
+
+    if (!persistenceResult.success) {
+      logger.warn('Persistence failed after successful AI analysis; returning runtime result without submission record', {
+        fallbackTrackingId,
+        persistenceError: persistenceResult.error
+      });
+
+      return res.status(200).json({
+        success: true,
+        trackingId: fallbackTrackingId,
+        submissionStatus: "ANALYSIS_COMPLETE",
+        timestamp: new Date().toISOString(),
+        location: {
+          latitude: parsedLat,
+          longitude: parsedLng
+        },
+        persistence: {
+          firestoreStatus: "FAILED",
+          cloudStorageStatus: "FAILED",
+          storageObjectPath: null
+        },
+        warning: persistenceResult.error?.message || 'Analysis succeeded, but persistence failed.',
+        ...reportBase
+      });
+    }
+
+    // Combine for final API Response
+    const responsePayload = {
+      success: true,
+      trackingId: persistenceResult.trackingId,
+      submissionStatus: "SUBMITTED",
+      timestamp: new Date().toISOString(),
+      location: {
+        latitude: parsedLat,
+        longitude: parsedLng
+      },
+      persistence: {
+        firestoreStatus: "PERSISTED",
+        cloudStorageStatus: "UPLOADED",
+        storageObjectPath: persistenceResult.storageObjectPath
+      },
+      ...reportBase
     };
 
     res.status(200).json(responsePayload);
 
   } catch (error: any) {
     logger.error('Analyze route failed', { error });
-    if (error.message === 'File too large') {
+    if (error.code === 'LIMIT_FILE_SIZE' || error.message === 'File too large') {
       return res.status(413).json({ success: false, error: { code: 'PAYLOAD_TOO_LARGE', message: 'File exceeds 10MB limit.' } });
+    }
+    if (error.message === 'UNSUPPORTED_MEDIA_TYPE') {
+      return res.status(415).json({ success: false, error: { code: 'UNSUPPORTED_MEDIA_TYPE', message: 'Only JPG, PNG, and WEBP formats are supported.' } });
     }
     res.status(500).json({
       success: false,
       error: { code: 'INTERNAL_ERROR', message: 'Internal Server Error' }
     });
   }
-}) as RequestHandler);
+}) as RequestHandler;
+
+demoRouter.post(`${API_PREFIX}/analyze`, upload.single('image'), analyzeHandler);
 
 export default demoRouter;
